@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (types, tests, build)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  rust:
+    name: Backend (clippy, tests)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      # The model, llama.cpp and tldr-pages are pinned and hash-verified by the
+      # script; the cache key changes whenever a pin does.
+      - name: Cache third-party assets
+        uses: actions/cache@v4
+        with:
+          path: |
+            src-tauri/resources/embedding
+            src-tauri/resources/llama
+            src-tauri/resources/tldr
+          key: assets-${{ hashFiles('scripts/fetch-assets.ps1') }}
+      - name: Fetch third-party assets
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/fetch-assets.ps1
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets --locked
+      - name: Tests
+        working-directory: src-tauri
+        run: cargo test --locked
+
+  installer:
+    name: Windows installer
+    needs: [frontend, rust]
+    # Building the installer takes a while; pull requests stop at the checks.
+    if: github.event_name != 'pull_request'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Cache third-party assets
+        uses: actions/cache@v4
+        with:
+          path: |
+            src-tauri/resources/embedding
+            src-tauri/resources/llama
+            src-tauri/resources/tldr
+          key: assets-${{ hashFiles('scripts/fetch-assets.ps1') }}
+      - name: Fetch third-party assets
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/fetch-assets.ps1
+      - run: npm ci
+      - name: Build installer
+        run: npx tauri build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vce-installer
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error

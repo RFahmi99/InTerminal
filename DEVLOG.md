@@ -123,3 +123,12 @@
 - **Files:** `index/embedding.rs`, `index/search.rs`, `index/tldr.rs`, `docs/ARCHITECTURE.md`.
 - **Tests:** 104 Rust tests pass, including the ranking evaluation with the real model and the tldr bundle, so ranking is unchanged. Smart App Control blocked the debug test binary (OS error 4551); `cargo test --release --lib` ran.
 - **Next:** The margin is only 2–5 MB and depends mostly on WebView2. Watch it when adding frontend features.
+
+## 2026-10-20 — Git repository and GitHub Actions CI
+- **What:** Initialised git (`main`), pushed to the private repository RFahmi99/InTerminal, and added `.github/workflows/ci.yml` with three jobs:
+  - frontend: typecheck, Vitest, Vite build;
+  - backend: clippy and `cargo test` with the hash-verified assets fetched and cached;
+  - installer: the NSIS bundle, uploaded as an artifact (pushes and manual runs only).
+- **Why:** Smart App Control blocks the Tauri release build script on the dev machine, so the installer can only be built in CI. CI also runs the tests on every push.
+- **Also:** `.gitattributes` forces LF, so the length-checked shell integration script has the same bytes on CRLF-defaulting Windows checkouts.
+- **Next:** Make clippy warnings fatal once the existing warnings are fixed. Code signing and auto-update.
