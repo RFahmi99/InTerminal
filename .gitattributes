@@ -1,0 +1,6 @@
+# Keep LF everywhere so builds and tests see the same bytes on every machine
+# (the shell integration script is length-checked and embedded verbatim).
+* text=auto eol=lf
+*.ico binary
+*.icns binary
+*.png binary
