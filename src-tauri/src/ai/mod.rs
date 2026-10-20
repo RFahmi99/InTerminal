@@ -76,10 +76,7 @@ pub struct AiStatus {
 }
 
 fn engine_path(app: &AppHandle) -> Option<PathBuf> {
-    app.path()
-        .resolve("resources/llama/llama-server.exe", BaseDirectory::Resource)
-        .ok()
-        .filter(|p| p.is_file())
+    app.path().resolve("resources/llama/llama-server.exe", BaseDirectory::Resource).ok().filter(|p| p.is_file())
 }
 
 fn models_dir(app: &AppHandle) -> CmdResult<PathBuf> {
@@ -170,10 +167,7 @@ fn complete(server: &LlamaServer, context: &PromptContext, request: &str) -> Cmd
         return Err(failed(format!("HTTP {status}: {}", text.chars().take(300).collect::<String>())));
     }
     let value: serde_json::Value = serde_json::from_str(&text).map_err(|e| failed(format!("unreadable response ({e})")))?;
-    value["choices"][0]["message"]["content"]
-        .as_str()
-        .map(str::to_string)
-        .ok_or_else(|| failed("the response had no message".into()))
+    value["choices"][0]["message"]["content"].as_str().map(str::to_string).ok_or_else(|| failed("the response had no message".into()))
 }
 
 #[tauri::command]
@@ -269,7 +263,10 @@ fn generate_blocking(app: &AppHandle, request: &str) -> CmdResult<GeneratedComma
     ai.cancel_generation.store(false, Ordering::SeqCst);
 
     let engine = engine_path(app).ok_or_else(|| {
-        AppError::new(ErrorCode::AiUnavailable, "The AI engine isn't installed with this copy of VCE, so command generation is unavailable.")
+        AppError::new(
+            ErrorCode::AiUnavailable,
+            "The AI engine isn't installed with this copy of VCE, so command generation is unavailable.",
+        )
     })?;
     let (model, using_default) = model_path(app, &app.state::<SettingsStore>())?;
     if !model.is_file() {
@@ -293,10 +290,12 @@ fn generate_blocking(app: &AppHandle, request: &str) -> CmdResult<GeneratedComma
         // target a PID Windows has already handed to another process.
         ai.generation.lock().unwrap_or_else(|e| e.into_inner()).server_pid = None;
         drop(server); // Unload the model now, before any post-processing.
-        raw.map_err(|e| if should_stop() {
-            AppError::new(ErrorCode::Cancelled, "Command generation was cancelled.")
-        } else {
-            AppError::new(e.code, format!("{} {engine_note}", e.message))
+        raw.map_err(|e| {
+            if should_stop() {
+                AppError::new(ErrorCode::Cancelled, "Command generation was cancelled.")
+            } else {
+                AppError::new(e.code, format!("{} {engine_note}", e.message))
+            }
         })
     });
     emit(app, EVENT_PROGRESS, Stage::Unloaded);

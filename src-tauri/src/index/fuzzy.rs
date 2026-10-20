@@ -39,12 +39,7 @@ fn max_typo_distance(len: usize) -> usize {
 
 /// Up to `limit` names closest to `typed`, nearest first. Among equally near
 /// names, ones in `popular` (commands people commonly mean) come first.
-pub fn closest<'a>(
-    typed: &str,
-    candidates: impl Iterator<Item = &'a str>,
-    popular: &HashSet<String>,
-    limit: usize,
-) -> Vec<String> {
+pub fn closest<'a>(typed: &str, candidates: impl Iterator<Item = &'a str>, popular: &HashSet<String>, limit: usize) -> Vec<String> {
     let typed_len = typed.chars().count();
     let max = max_typo_distance(typed_len);
     if max == 0 {

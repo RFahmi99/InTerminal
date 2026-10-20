@@ -159,10 +159,8 @@ fn remove_legacy_cache(app: &AppHandle) {
 
 /// Whether the parameter usage cache is missing or old enough to rebuild.
 fn usage_is_stale(path: Option<&Path>) -> bool {
-    let age = path
-        .and_then(|p| std::fs::metadata(p).ok())
-        .and_then(|meta| meta.modified().ok())
-        .and_then(|modified| modified.elapsed().ok());
+    let age =
+        path.and_then(|p| std::fs::metadata(p).ok()).and_then(|meta| meta.modified().ok()).and_then(|modified| modified.elapsed().ok());
     age.is_none_or(|age| age > USAGE_MAX_AGE)
 }
 
@@ -189,9 +187,9 @@ fn build(app: &AppHandle, manager: &IndexManager, refresh_usage: bool) {
             None
         }
     };
-    let tldr = match resource(app, "resources/tldr/pages.md").and_then(|p| {
-        std::fs::read_to_string(&p).map_err(|e| format!("reading {}: {e}", p.display()))
-    }) {
+    let tldr = match resource(app, "resources/tldr/pages.md")
+        .and_then(|p| std::fs::read_to_string(&p).map_err(|e| format!("reading {}: {e}", p.display())))
+    {
         Ok(text) => tldr::parse_bundle(&text),
         Err(e) => {
             log::error!("tldr-pages examples unavailable: {e}");
@@ -253,7 +251,9 @@ fn build(app: &AppHandle, manager: &IndexManager, refresh_usage: bool) {
             Err(e) => {
                 log::error!("Reading PowerShell parameter usage failed: {e}");
                 let mut status = manager.status();
-                status.messages.push("PowerShell commands' parameter lists couldn't be read, so search shows commands without them.".into());
+                status
+                    .messages
+                    .push("PowerShell commands' parameter lists couldn't be read, so search shows commands without them.".into());
                 manager.set_status(app, status);
             }
         }

@@ -106,11 +106,7 @@ fn read_entry(entry: &fs::DirEntry) -> std::io::Result<DirEntryInfo> {
         is_hidden: attributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM) != 0,
         is_symlink,
         size: meta.is_file().then_some(meta.len()),
-        modified_ms: meta
-            .modified()
-            .ok()
-            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-            .map(|d| d.as_millis() as u64),
+        modified_ms: meta.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map(|d| d.as_millis() as u64),
     })
 }
 
@@ -202,11 +198,7 @@ pub fn rename(path: &Path, new_name: &str) -> CmdResult<FsOpResult> {
     }
     rename_no_replace(path, &target).map_err(|e| AppError::io("rename", path, &e))?;
     Ok(FsOpResult {
-        equivalent: format!(
-            "Rename-Item -LiteralPath {} -NewName {}",
-            single_quote(&path.to_string_lossy()),
-            single_quote(new_name)
-        ),
+        equivalent: format!("Rename-Item -LiteralPath {} -NewName {}", single_quote(&path.to_string_lossy()), single_quote(new_name)),
         paths: vec![target.to_string_lossy().into_owned()],
     })
 }
@@ -244,7 +236,10 @@ pub fn move_into(sources: &[PathBuf], dest_dir: &Path) -> CmdResult<FsOpResult> 
         if !target_names.insert(name.to_string_lossy().to_lowercase()) {
             return Err(AppError::new(
                 ErrorCode::InvalidInput,
-                format!("More than one selected item is called \"{}\", so they can't all be moved into the same folder.", name.to_string_lossy()),
+                format!(
+                    "More than one selected item is called \"{}\", so they can't all be moved into the same folder.",
+                    name.to_string_lossy()
+                ),
             ));
         }
         let target = dest_dir.join(name);
@@ -267,15 +262,8 @@ pub fn move_into(sources: &[PathBuf], dest_dir: &Path) -> CmdResult<FsOpResult> 
             } else {
                 e.to_string()
             };
-            let prefix = if moved.is_empty() {
-                String::new()
-            } else {
-                format!("Moved {} of {} items. ", moved.len(), plan.len())
-            };
-            return Err(AppError::new(
-                ErrorCode::Io,
-                format!("{prefix}Couldn't move \"{}\": {cause}", source.display()),
-            ));
+            let prefix = if moved.is_empty() { String::new() } else { format!("Moved {} of {} items. ", moved.len(), plan.len()) };
+            return Err(AppError::new(ErrorCode::Io, format!("{prefix}Couldn't move \"{}\": {cause}", source.display())));
         }
         moved.push(target.to_string_lossy().into_owned());
     }
@@ -330,9 +318,7 @@ pub async fn fs_trash(paths: Vec<String>) -> CmdResult<FsOpResult> {
 /// Opens a file with its default app.
 #[tauri::command]
 pub async fn fs_open(app: AppHandle, path: String) -> CmdResult<()> {
-    app.opener()
-        .open_path(&path, None::<&str>)
-        .map_err(|e| AppError::new(ErrorCode::Io, format!("Could not open \"{path}\": {e}")))
+    app.opener().open_path(&path, None::<&str>).map_err(|e| AppError::new(ErrorCode::Io, format!("Could not open \"{path}\": {e}")))
 }
 
 /// Shows the item selected in Windows File Explorer.

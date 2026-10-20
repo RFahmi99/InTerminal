@@ -27,15 +27,7 @@ fn read_string(root: HKEY, subkey_name: &str, value_name: &str) -> Option<String
     let mut buffer = vec![0u16; (bytes as usize).div_ceil(2)];
     // SAFETY: `buffer` holds `bytes` bytes, as the size query reported.
     let status = unsafe {
-        RegGetValueW(
-            root,
-            subkey.as_ptr(),
-            value.as_ptr(),
-            RRF_RT_REG_SZ,
-            std::ptr::null_mut(),
-            buffer.as_mut_ptr().cast(),
-            &mut bytes,
-        )
+        RegGetValueW(root, subkey.as_ptr(), value.as_ptr(), RRF_RT_REG_SZ, std::ptr::null_mut(), buffer.as_mut_ptr().cast(), &mut bytes)
     };
     if status != 0 {
         log::warn!("Could not read registry value {subkey_name}\\{value_name}: error {status}");

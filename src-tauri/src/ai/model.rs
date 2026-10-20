@@ -46,9 +46,7 @@ pub fn default_model_path(models_dir: &Path) -> PathBuf {
 /// with a clear message instead of deep inside llama.cpp.
 pub fn validate_gguf(path: &Path) -> CmdResult<()> {
     let mut magic = [0u8; 4];
-    File::open(path)
-        .and_then(|mut f| f.read_exact(&mut magic))
-        .map_err(|e| AppError::io("read model file", path, &e))?;
+    File::open(path).and_then(|mut f| f.read_exact(&mut magic)).map_err(|e| AppError::io("read model file", path, &e))?;
     if &magic != b"GGUF" {
         return Err(AppError::new(
             ErrorCode::InvalidInput,
@@ -94,12 +92,8 @@ pub fn download_default(
 
     let failed = |what: String| AppError::new(ErrorCode::AiFailed, format!("Downloading the model failed: {what}"));
     let response = https_agent().get(DEFAULT_MODEL.url).call().map_err(|e| failed(e.to_string()))?;
-    let total = response
-        .headers()
-        .get("content-length")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(DEFAULT_MODEL.bytes);
+    let total =
+        response.headers().get("content-length").and_then(|v| v.to_str().ok()).and_then(|v| v.parse().ok()).unwrap_or(DEFAULT_MODEL.bytes);
     let mut reader = response.into_body().into_reader();
     let mut file = File::create(&partial).map_err(|e| AppError::io("create", &partial, &e))?;
     let mut hasher = Sha256::new();

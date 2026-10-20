@@ -29,9 +29,9 @@ const DESCRIPTION_WEIGHT: f32 = 0.9;
 const COMPLEXITY_WEIGHT: f32 = 0.04;
 
 const STOPWORDS: &[&str] = &[
-    "a", "an", "the", "to", "of", "for", "in", "on", "my", "all", "with", "and", "or", "from", "into", "how", "do",
-    "i", "me", "what", "is", "are", "this", "that", "it", "by", "at", "be", "can", "which", "using", "use", "please",
-    "want", "need", "some", "its", "your", "you", "there", "via",
+    "a", "an", "the", "to", "of", "for", "in", "on", "my", "all", "with", "and", "or", "from", "into", "how", "do", "i", "me", "what",
+    "is", "are", "this", "that", "it", "by", "at", "be", "can", "which", "using", "use", "please", "want", "need", "some", "its", "your",
+    "you", "there", "via",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -77,9 +77,16 @@ enum DocSource {
     /// Installing a program from the catalog's tool list with winget.
     Tool(usize),
     Cmdlet(String),
-    Program { name: String, path: PathBuf },
+    Program {
+        name: String,
+        path: PathBuf,
+    },
     /// Example `example` of tldr page `page`, written as it must be typed here.
-    Tldr { page: usize, example: usize, command: String },
+    Tldr {
+        page: usize,
+        example: usize,
+        command: String,
+    },
 }
 
 /// How a tldr page's commands have to be typed in PowerShell.
@@ -237,9 +244,8 @@ fn split_identifier(name: &str) -> String {
         let chars: Vec<char> = part.chars().collect();
         let mut current = String::new();
         for (i, &c) in chars.iter().enumerate() {
-            let boundary = i > 0
-                && c.is_uppercase()
-                && (chars[i - 1].is_lowercase() || chars.get(i + 1).is_some_and(|next| next.is_lowercase()));
+            let boundary =
+                i > 0 && c.is_uppercase() && (chars[i - 1].is_lowercase() || chars.get(i + 1).is_some_and(|next| next.is_lowercase()));
             if boundary && !current.is_empty() {
                 words.push(std::mem::take(&mut current));
             }
@@ -421,20 +427,13 @@ impl CommandIndex {
     }
 
     fn tldr_description(&self, name: &str) -> Option<&str> {
-        self.tldr_by_program
-            .get(name)
-            .map(|&i| self.knowledge.tldr[i].description.as_str())
-            .filter(|d| !d.is_empty())
+        self.tldr_by_program.get(name).map(|&i| self.knowledge.tldr[i].description.as_str()).filter(|d| !d.is_empty())
     }
 
     /// The description shown for a bare cmdlet: its help synopsis, else the
     /// tldr page's description.
     fn cmdlet_description(&self, lower_name: &str) -> Option<String> {
-        self.knowledge
-            .synopses
-            .get(lower_name)
-            .cloned()
-            .or_else(|| self.tldr_description(lower_name).map(str::to_string))
+        self.knowledge.synopses.get(lower_name).cloned().or_else(|| self.tldr_description(lower_name).map(str::to_string))
     }
 
     fn embed_all(&self, texts: &[(f32, String)]) -> Vec<(f32, CompactVector)> {
@@ -582,9 +581,7 @@ impl CommandIndex {
                 let in_terms = |ids: &[u32]| term.id.is_some_and(|id| ids.binary_search(&id).is_ok());
                 let strength = if in_terms(&doc.primary_terms) {
                     1.0
-                } else if in_terms(&doc.secondary_terms)
-                    || doc.primary_terms.iter().any(|id| term.prefixed.binary_search(id).is_ok())
-                {
+                } else if in_terms(&doc.secondary_terms) || doc.primary_terms.iter().any(|id| term.prefixed.binary_search(id).is_ok()) {
                     0.5
                 } else {
                     0.0
@@ -793,7 +790,13 @@ mod tests {
         let catalog = Catalog {
             version: 1,
             entries: vec![
-                entry("expand-archive", "Extract files from a .zip archive", "Expand-Archive -Path <archive>", &["unzip", "extract", "decompress"], &["Expand-Archive"]),
+                entry(
+                    "expand-archive",
+                    "Extract files from a .zip archive",
+                    "Expand-Archive -Path <archive>",
+                    &["unzip", "extract", "decompress"],
+                    &["Expand-Archive"],
+                ),
                 entry("git-status", "Show changed files in a Git repo", "git status", &["git changes", "modified files"], &["git"]),
                 entry("docker-ps", "List running containers", "docker ps", &["containers"], &["docker"]),
             ],
@@ -1005,10 +1008,9 @@ mod tests {
     #[test]
     fn real_catalog_and_model_rank_expected_entries_first() {
         let resources = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources");
-        let (Ok(catalog), Ok(embedder)) = (
-            Catalog::load(&resources.join("catalog.json")),
-            StaticEmbedder::load(&resources.join("embedding")),
-        ) else {
+        let (Ok(catalog), Ok(embedder)) =
+            (Catalog::load(&resources.join("catalog.json")), StaticEmbedder::load(&resources.join("embedding")))
+        else {
             eprintln!("skipping: run scripts/fetch-assets.ps1 first");
             return;
         };
@@ -1055,4 +1057,3 @@ mod tests {
         assert!(failures.is_empty(), "expected commands missing from the top 3:\n{}", failures.join("\n"));
     }
 }
-

@@ -47,10 +47,7 @@ mod tests {
 
     #[test]
     fn fills_and_quotes_values() {
-        let values = HashMap::from([
-            ("archive".to_string(), "My Photos.zip".to_string()),
-            ("folder".to_string(), "photos".to_string()),
-        ]);
+        let values = HashMap::from([("archive".to_string(), "My Photos.zip".to_string()), ("folder".to_string(), "photos".to_string())]);
         let filled = fill("Expand-Archive -Path <archive> -DestinationPath <folder>", &values);
         assert_eq!(filled.command, "Expand-Archive -Path 'My Photos.zip' -DestinationPath photos");
         assert!(filled.missing.is_empty());

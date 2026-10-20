@@ -57,11 +57,11 @@ fn re(pattern: &str) -> Regex {
 }
 
 static TERM_NOT_RECOGNIZED: LazyLock<Regex> = LazyLock::new(|| re(r"The term '([^']+)' is not recognized"));
-static CMD_NOT_RECOGNIZED: LazyLock<Regex> =
-    LazyLock::new(|| re(r"'([^']+)' is not recognized as an internal or external command"));
+static CMD_NOT_RECOGNIZED: LazyLock<Regex> = LazyLock::new(|| re(r"'([^']+)' is not recognized as an internal or external command"));
 static NODE_MISSING_MODULE: LazyLock<Regex> = LazyLock::new(|| re(r"Cannot find module '([^']+)'"));
 static NPM_MISSING_SCRIPT: LazyLock<Regex> = LazyLock::new(|| re(r#"(?i)missing script:?\s*"?([^"\s]+)"?"#));
-static PORT_IN_USE: LazyLock<Regex> = LazyLock::new(|| re(r"(?i)EADDRINUSE[^\n]*?:(\d{2,5})|address already in use[^\n]*?:(\d{2,5})|port (\d{2,5}) is already in use"));
+static PORT_IN_USE: LazyLock<Regex> =
+    LazyLock::new(|| re(r"(?i)EADDRINUSE[^\n]*?:(\d{2,5})|address already in use[^\n]*?:(\d{2,5})|port (\d{2,5}) is already in use"));
 static PY_MISSING_MODULE: LazyLock<Regex> = LazyLock::new(|| re(r"ModuleNotFoundError: No module named '([^']+)'"));
 // Values lifted from command output are untrusted text that ends up in a
 // command line, so captures only accept the characters remote, branch and
@@ -117,7 +117,10 @@ fn linux_equivalent(name: &str, rest: &str) -> Option<(String, &'static str)> {
         "export" => {
             let assignment = arg(0, "NAME=value");
             let (key, value) = assignment.split_once('=').unwrap_or((assignment.as_str(), ""));
-            (format!("$env:{key} = {}", single_quote(value.trim_matches(['"', '\'']))), "PowerShell sets environment variables through $env:.")
+            (
+                format!("$env:{key} = {}", single_quote(value.trim_matches(['"', '\'']))),
+                "PowerShell sets environment variables through $env:.",
+            )
         }
         "sudo" => (
             "Start-Process powershell -Verb RunAs".into(),
@@ -125,7 +128,9 @@ fn linux_equivalent(name: &str, rest: &str) -> Option<(String, &'static str)> {
         ),
         "ifconfig" => ("ipconfig /all".into(), "Windows shows network settings with ipconfig."),
         "head" => (format!("Get-Content {} -TotalCount 10", arg(0, "<file>")), "Get-Content -TotalCount shows the first lines of a file."),
-        "tail" => (format!("Get-Content {} -Tail 10", arg(0, "<file>")), "Get-Content -Tail shows the last lines; add -Wait to follow the file."),
+        "tail" => {
+            (format!("Get-Content {} -Tail 10", arg(0, "<file>")), "Get-Content -Tail shows the last lines; add -Wait to follow the file.")
+        }
         "man" => (format!("Get-Help {} -Full", arg(0, "<command>")), "PowerShell's manual pages come from Get-Help."),
         "nano" | "vim" | "vi" => (format!("notepad {}", arg(0, "<file>")), "Notepad is always available for editing text files."),
         "open" | "xdg-open" => (format!("Invoke-Item {}", arg(0, ".")), "Invoke-Item opens a file or folder with its default app."),
@@ -162,7 +167,8 @@ fn tool_alias(name: &str) -> &str {
 
 fn command_not_found(report: &FailureReport, index: Option<&CommandIndex>, text: &str) -> Vec<Suggestion> {
     let error = report.error.as_ref();
-    let is_not_found = error.is_some_and(|e| e.error_id.contains("CommandNotFoundException") || e.exception_type.ends_with("CommandNotFoundException"))
+    let is_not_found = error
+        .is_some_and(|e| e.error_id.contains("CommandNotFoundException") || e.exception_type.ends_with("CommandNotFoundException"))
         || CMD_NOT_RECOGNIZED.is_match(text)
         || TERM_NOT_RECOGNIZED.is_match(text);
     if !is_not_found {
@@ -284,11 +290,7 @@ fn npm_package(module: &str) -> Option<String> {
     }
     let mut parts = module.split('/');
     let first = parts.next()?;
-    let package = if let Some(scoped) = first.strip_prefix('@') {
-        format!("@{scoped}/{}", parts.next()?)
-    } else {
-        first.to_string()
-    };
+    let package = if let Some(scoped) = first.strip_prefix('@') { format!("@{scoped}/{}", parts.next()?) } else { first.to_string() };
     // Anything that isn't a valid npm name (including `node:` built-ins) is
     // not something `npm install` can fix, and mustn't reach a command line.
     NPM_PACKAGE_NAME.is_match(&package).then_some(package)
@@ -331,7 +333,9 @@ fn node_errors(text: &str) -> Vec<Suggestion> {
         suggestions.push(Suggestion::fix(
             "port-in-use",
             format!("See what's using port {port}"),
-            format!("Another program is already listening on port {port}. This shows which one, so you can close it or pick a different port."),
+            format!(
+                "Another program is already listening on port {port}. This shows which one, so you can close it or pick a different port."
+            ),
             format!("Get-NetTCPConnection -LocalPort {port} -State Listen | ForEach-Object {{ Get-Process -Id $_.OwningProcess }}"),
         ));
         suggestions.push(Suggestion::fix(
@@ -380,7 +384,9 @@ fn python_errors(text: &str) -> Vec<Suggestion> {
     vec![Suggestion::fix(
         "pip-missing-module",
         format!("Install {package}"),
-        format!("The script imports \"{module}\", which isn't installed for this Python. If you use a virtual environment, activate it first."),
+        format!(
+            "The script imports \"{module}\", which isn't installed for this Python. If you use a virtual environment, activate it first."
+        ),
         format!("python -m pip install {package}"),
     )]
 }
@@ -421,7 +427,9 @@ fn git_errors(report: &FailureReport, text: &str) -> Vec<Suggestion> {
             with_first_word(&format!("git {similar}"), &after_subcommand),
         ));
     }
-    if text.contains("Updates were rejected") && (text.contains("fetch first") || text.contains("non-fast-forward") || text.contains("behind")) {
+    if text.contains("Updates were rejected")
+        && (text.contains("fetch first") || text.contains("non-fast-forward") || text.contains("behind"))
+    {
         suggestions.push(Suggestion::fix(
             "git-pull-rebase",
             "Get the remote changes first",
@@ -447,9 +455,7 @@ fn bad_parameter(report: &FailureReport, text: &str) -> Vec<Suggestion> {
     };
     let (first, rest) = split_first(&report.command_line);
     let lower = first.to_lowercase();
-    let without_flag = |flag: &str| {
-        rest.split_whitespace().filter(|w| !w.eq_ignore_ascii_case(flag)).collect::<Vec<_>>().join(" ")
-    };
+    let without_flag = |flag: &str| rest.split_whitespace().filter(|w| !w.eq_ignore_ascii_case(flag)).collect::<Vec<_>>().join(" ");
     let fixed = match (lower.as_str(), parameter.as_str()) {
         ("rm" | "remove-item" | "del" | "rmdir" | "rd", "rf" | "fr" | "r") => {
             Some(format!("{first} -Recurse -Force {}", without_flag(&format!("-{parameter}"))))
@@ -497,7 +503,10 @@ fn path_not_found(report: &FailureReport, text: &str) -> Vec<Suggestion> {
         return vec![Suggestion::advice(
             "path-not-found",
             "That path doesn't exist",
-            format!("The folder {} doesn't exist either. Check the path, or use the file tree to find what you're after.", parent.display()),
+            format!(
+                "The folder {} doesn't exist either. Check the path, or use the file tree to find what you're after.",
+                parent.display()
+            ),
         )];
     };
     let names: Vec<String> = entries.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
@@ -619,7 +628,9 @@ mod tests {
         FailureReport {
             command_line: command_line.into(),
             error: Some(PsError {
-                message: format!("The term '{name}' is not recognized as the name of a cmdlet, function, script file, or operable program."),
+                message: format!(
+                    "The term '{name}' is not recognized as the name of a cmdlet, function, script file, or operable program."
+                ),
                 error_id: "CommandNotFoundException".into(),
                 category: "ObjectNotFound".into(),
                 target: name.into(),

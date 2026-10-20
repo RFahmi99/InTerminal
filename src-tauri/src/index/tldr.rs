@@ -181,11 +181,8 @@ mod tests {
 
     #[test]
     fn add_on_subcommands_name_their_own_executable() {
-        let page = |name: &str, note: &str| {
-            parse_bundle(&format!("%%% common/x.md\n# {name}\n\n> Does something.\n> {note}\n"))
-                .pop()
-                .unwrap()
-        };
+        let page =
+            |name: &str, note: &str| parse_bundle(&format!("%%% common/x.md\n# {name}\n\n> Does something.\n> {note}\n")).pop().unwrap();
         assert_eq!(page("git magic", "Part of `git-extras`.").add_on_executable().as_deref(), Some("git-magic"));
         // The Azure CLI's own subcommands come with `az` itself.
         assert_eq!(page("az advisor", "Part of `azure-cli` (also known as `az`).").add_on_executable(), None);

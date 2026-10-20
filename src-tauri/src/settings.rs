@@ -53,7 +53,10 @@ impl SettingsStore {
                         }
                     };
                     log::warn!("Unreadable settings file {}: {e}", path.display());
-                    (Settings::default(), Some(format!("Your saved settings couldn't be read ({e}), so VCE started with the defaults.{kept}")))
+                    (
+                        Settings::default(),
+                        Some(format!("Your saved settings couldn't be read ({e}), so VCE started with the defaults.{kept}")),
+                    )
                 }
             },
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => (Settings::default(), None),
@@ -85,8 +88,7 @@ fn write_atomically(path: &Path, settings: &Settings) -> CmdResult<()> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| AppError::io("create folder", dir, &e))?;
     }
-    let json = serde_json::to_vec_pretty(settings)
-        .map_err(|e| AppError::new(ErrorCode::Io, format!("Could not encode settings: {e}")))?;
+    let json = serde_json::to_vec_pretty(settings).map_err(|e| AppError::new(ErrorCode::Io, format!("Could not encode settings: {e}")))?;
     let temporary = path.with_extension("json.tmp");
     std::fs::write(&temporary, json).map_err(|e| AppError::io("write", &temporary, &e))?;
     std::fs::rename(&temporary, path).map_err(|e| AppError::io("save", path, &e))

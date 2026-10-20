@@ -182,11 +182,7 @@ impl LlamaServer {
     pub fn stderr_summary(&self) -> String {
         let tail = self.stderr_tail.lock().unwrap_or_else(|e| e.into_inner());
         let text = String::from_utf8_lossy(&tail.iter().copied().collect::<Vec<u8>>()).into_owned();
-        text.lines()
-            .rev()
-            .find(|l| !l.trim().is_empty())
-            .map(|l| format!("Last engine message: {}", l.trim()))
-            .unwrap_or_default()
+        text.lines().rev().find(|l| !l.trim().is_empty()).map(|l| format!("Last engine message: {}", l.trim())).unwrap_or_default()
     }
 
     pub fn process_id(&self) -> u32 {

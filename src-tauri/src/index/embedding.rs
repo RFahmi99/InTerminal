@@ -25,10 +25,9 @@ impl StaticEmbedder {
     /// Loads `tokenizer.json` and `model.safetensors` from `dir`.
     pub fn load(dir: &Path) -> Result<Self, String> {
         let tokenizer_path = dir.join("tokenizer.json");
-        let tokenizer_text = std::fs::read_to_string(&tokenizer_path)
-            .map_err(|e| format!("reading {}: {e}", tokenizer_path.display()))?;
-        let tokenizer: serde_json::Value = serde_json::from_str(&tokenizer_text)
-            .map_err(|e| format!("parsing {}: {e}", tokenizer_path.display()))?;
+        let tokenizer_text = std::fs::read_to_string(&tokenizer_path).map_err(|e| format!("reading {}: {e}", tokenizer_path.display()))?;
+        let tokenizer: serde_json::Value =
+            serde_json::from_str(&tokenizer_text).map_err(|e| format!("parsing {}: {e}", tokenizer_path.display()))?;
         let model = &tokenizer["model"];
         if model["type"] != "WordPiece" {
             return Err(format!("{} is not a WordPiece tokenizer", tokenizer_path.display()));
@@ -154,17 +153,13 @@ fn read_embedding_tensor(bytes: &[u8]) -> Result<(usize, usize, Vec<f32>), Strin
     if tensor["dtype"] != "F32" {
         return Err(format!("expected F32 embeddings, found {}", tensor["dtype"]));
     }
-    let shape: Vec<usize> = tensor["shape"]
-        .as_array()
-        .map(|dims| dims.iter().filter_map(|d| d.as_u64().map(|d| d as usize)).collect())
-        .unwrap_or_default();
+    let shape: Vec<usize> =
+        tensor["shape"].as_array().map(|dims| dims.iter().filter_map(|d| d.as_u64().map(|d| d as usize)).collect()).unwrap_or_default();
     let [rows, dim] = shape[..] else {
         return Err(format!("expected a 2-D embeddings tensor, found shape {shape:?}"));
     };
-    let offsets: Vec<usize> = tensor["data_offsets"]
-        .as_array()
-        .map(|o| o.iter().filter_map(|v| v.as_u64().map(|v| v as usize)).collect())
-        .unwrap_or_default();
+    let offsets: Vec<usize> =
+        tensor["data_offsets"].as_array().map(|o| o.iter().filter_map(|v| v.as_u64().map(|v| v as usize)).collect()).unwrap_or_default();
     let [begin, end] = offsets[..] else {
         return Err("embeddings tensor has no data offsets".into());
     };
@@ -295,15 +290,7 @@ mod tests {
             [0.0, 0.0, 0.0, 0.0],
         ];
         let (weights, scales) = quantize_rows(rows.iter().flatten().copied().collect(), dim);
-        StaticEmbedder {
-            vocab,
-            unk_id: Some(0),
-            continuing_prefix: "##".into(),
-            max_chars_per_word: 100,
-            dim,
-            weights,
-            scales,
-        }
+        StaticEmbedder { vocab, unk_id: Some(0), continuing_prefix: "##".into(), max_chars_per_word: 100, dim, weights, scales }
     }
 
     #[test]

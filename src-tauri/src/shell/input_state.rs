@@ -9,9 +9,8 @@ use regex::Regex;
 /// Replies the terminal emulator sends on its own, not keystrokes: focus
 /// in/out (ConPTY turns on focus reporting), cursor position reports and
 /// device attribute responses. They never change the command line.
-static TERMINAL_REPORTS: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^(?:\x1b\[(?:I|O|\d+;\d+R|[?>][\d;]*c|\d+(?:;\d+)*t))+$").expect("valid regex")
-});
+static TERMINAL_REPORTS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(?:\x1b\[(?:I|O|\d+;\d+R|[?>][\d;]*c|\d+(?:;\d+)*t))+$").expect("valid regex"));
 
 /// What the user has done since the last prompt was drawn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

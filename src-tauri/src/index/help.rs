@@ -37,8 +37,7 @@ fn decode_entities(text: &str) -> String {
 
 /// `(command name, synopsis)` pairs from one MAML help file.
 pub fn parse_maml(xml: &str) -> Vec<(String, String)> {
-    static DETAILS: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"(?s)<command:details>(.*?)</command:details>").expect("valid regex"));
+    static DETAILS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)<command:details>(.*?)</command:details>").expect("valid regex"));
     static NAME: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)<command:name>(.*?)</command:name>").expect("valid regex"));
     static DESCRIPTION: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"(?s)<maml:description>(.*?)</maml:description>").expect("valid regex"));

@@ -150,7 +150,13 @@ mod tests {
 
     #[test]
     fn deletion_is_dangerous_in_any_spelling() {
-        for command in ["Remove-Item -Recurse -Force .\\build", "rm -r node_modules", "del *.log", "cmd /c rd /s /q dist", "Get-ChildItem *.tmp | Remove-Item"] {
+        for command in [
+            "Remove-Item -Recurse -Force .\\build",
+            "rm -r node_modules",
+            "del *.log",
+            "cmd /c rd /s /q dist",
+            "Get-ChildItem *.tmp | Remove-Item",
+        ] {
             assert_eq!(level(command), RiskLevel::Danger, "{command}");
         }
     }
@@ -193,7 +199,9 @@ mod tests {
 
     #[test]
     fn deletes_inside_inner_commands_and_assignments_are_dangerous() {
-        for command in [r#"cmd /c "rd /s /q dist""#, r#"powershell -c "Remove-Item -Recurse build""#, "$null = Remove-Item x", "pwsh -c 'rm -r out'"] {
+        for command in
+            [r#"cmd /c "rd /s /q dist""#, r#"powershell -c "Remove-Item -Recurse build""#, "$null = Remove-Item x", "pwsh -c 'rm -r out'"]
+        {
             assert_eq!(level(command), RiskLevel::Danger, "{command}");
         }
     }

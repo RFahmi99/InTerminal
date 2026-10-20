@@ -61,29 +61,20 @@ impl Inventory {
         if self.ps_commands.contains_key(&lower) || self.executables.contains_key(&lower) {
             return true;
         }
-        Path::new(&lower)
-            .file_stem()
-            .and_then(OsStr::to_str)
-            .is_some_and(|stem| stem != lower && self.executables.contains_key(stem))
+        Path::new(&lower).file_stem().and_then(OsStr::to_str).is_some_and(|stem| stem != lower && self.executables.contains_key(stem))
     }
 
     /// Every runnable name, in its display spelling, for "did you mean" matching.
     pub fn names(&self) -> impl Iterator<Item = &str> {
-        self.ps_commands
-            .values()
-            .map(|c| c.name.as_str())
-            .chain(self.executables.keys().map(String::as_str))
+        self.ps_commands.values().map(|c| c.name.as_str()).chain(self.executables.keys().map(String::as_str))
     }
 }
 
 /// Finds executables in every PATH directory whose extension is in PATHEXT.
 /// Earlier directories win, matching how Windows resolves commands.
 pub fn scan_path(path_var: &OsStr, pathext: &str) -> HashMap<String, PathBuf> {
-    let extensions: Vec<String> = pathext
-        .split(';')
-        .map(|e| e.trim().trim_start_matches('.').to_lowercase())
-        .filter(|e| !e.is_empty())
-        .collect();
+    let extensions: Vec<String> =
+        pathext.split(';').map(|e| e.trim().trim_start_matches('.').to_lowercase()).filter(|e| !e.is_empty()).collect();
     let mut found = HashMap::new();
     for dir in std::env::split_paths(path_var) {
         let entries = match std::fs::read_dir(&dir) {
@@ -190,8 +181,8 @@ pub fn query_ps_usage(shell: &Path) -> Result<HashMap<String, String>, String> {
         usage: String,
     }
     let json = run_hidden(shell, LIST_USAGE_SCRIPT, BELOW_NORMAL_PRIORITY_CLASS)?;
-    let raw: Vec<RawUsage> = serde_json::from_str(json.trim_start_matches('\u{feff}').trim())
-        .map_err(|e| format!("parsing parameter usage output: {e}"))?;
+    let raw: Vec<RawUsage> =
+        serde_json::from_str(json.trim_start_matches('\u{feff}').trim()).map_err(|e| format!("parsing parameter usage output: {e}"))?;
     Ok(raw.into_iter().map(|u| (u.name.to_lowercase(), u.usage)).collect())
 }
 

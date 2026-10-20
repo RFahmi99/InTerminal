@@ -33,9 +33,46 @@ impl PromptContext {
 /// Programs worth telling the model about when installed; listing all of
 /// System32 would only distract a small model.
 pub const NOTABLE_TOOLS: &[&str] = &[
-    "git", "node", "npm", "npx", "yarn", "pnpm", "python", "pip", "py", "uv", "docker", "winget", "choco", "scoop", "code",
-    "cargo", "rustc", "go", "java", "javac", "mvn", "gradle", "dotnet", "gh", "az", "aws", "kubectl", "terraform", "ffmpeg",
-    "7z", "tar", "curl", "ssh", "scp", "rg", "jq", "deno", "bun", "make", "cmake",
+    "git",
+    "node",
+    "npm",
+    "npx",
+    "yarn",
+    "pnpm",
+    "python",
+    "pip",
+    "py",
+    "uv",
+    "docker",
+    "winget",
+    "choco",
+    "scoop",
+    "code",
+    "cargo",
+    "rustc",
+    "go",
+    "java",
+    "javac",
+    "mvn",
+    "gradle",
+    "dotnet",
+    "gh",
+    "az",
+    "aws",
+    "kubectl",
+    "terraform",
+    "ffmpeg",
+    "7z",
+    "tar",
+    "curl",
+    "ssh",
+    "scp",
+    "rg",
+    "jq",
+    "deno",
+    "bun",
+    "make",
+    "cmake",
 ];
 
 const EXAMPLES: &[(&str, &str, &str)] = &[
@@ -137,8 +174,8 @@ static CODE_FENCE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)```(?:\w+
 static JSON_OBJECT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)\{.*\}").expect("valid regex"));
 
 const KEYWORDS: &[&str] = &[
-    "if", "elseif", "else", "foreach", "for", "while", "do", "until", "switch", "try", "catch", "finally", "function",
-    "filter", "param", "return", "begin", "process", "end", "break", "continue", "throw", "exit", "trap", "in",
+    "if", "elseif", "else", "foreach", "for", "while", "do", "until", "switch", "try", "catch", "finally", "function", "filter", "param",
+    "return", "begin", "process", "end", "break", "continue", "throw", "exit", "trap", "in",
 ];
 
 fn parse_reply(raw: &str) -> Option<ModelReply> {
@@ -223,14 +260,15 @@ fn command_words(command: &str) -> Vec<String> {
 pub fn finish(raw: &str, context: &PromptContext, inventory: Option<&Inventory>) -> Option<GeneratedCommand> {
     let reply = parse_reply(raw)?;
     let mut warnings = Vec::new();
-    let mut command = to_single_line(
-        reply.command.trim().trim_start_matches("PS> ").trim_start_matches("> ").trim_start_matches("$ ").trim(),
-    );
+    let mut command =
+        to_single_line(reply.command.trim().trim_start_matches("PS> ").trim_start_matches("> ").trim_start_matches("$ ").trim());
     if context.is_windows_powershell() && command.contains("&&") {
         match convert_chain_operators(&command) {
             Some(converted) => {
                 command = converted;
-                warnings.push("Rewrote && (not supported by Windows PowerShell 5.1) so each step runs only if the previous one succeeded.".into());
+                warnings.push(
+                    "Rewrote && (not supported by Windows PowerShell 5.1) so each step runs only if the previous one succeeded.".into(),
+                );
             }
             None => warnings.push("This uses && or ||, which Windows PowerShell 5.1 doesn't support.".into()),
         }
@@ -246,7 +284,9 @@ pub fn finish(raw: &str, context: &PromptContext, inventory: Option<&Inventory>)
                 warnings.push(format!("\"{word}\" isn't an installed program or known PowerShell command. The model may have made it up."));
             }
         }
-        None => warnings.push("VCE couldn't yet check that the commands used here exist on this computer, so review them carefully.".into()),
+        None => {
+            warnings.push("VCE couldn't yet check that the commands used here exist on this computer, so review them carefully.".into())
+        }
     }
     Some(GeneratedCommand { risk: risk::assess(&command), command, explanation: reply.explanation.trim().to_string(), warnings })
 }

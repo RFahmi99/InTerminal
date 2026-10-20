@@ -183,18 +183,11 @@ fn control_char_error(what: &str, c: char) -> AppError {
 impl ShellSession {
     /// Starts PowerShell in a new pseudo-console. Must be called from within
     /// the Tauri async runtime, because the named pipe registers with it.
-    pub fn spawn(
-        id: u64,
-        app: AppHandle,
-        output: Arc<OutputSink>,
-        size: PtySize,
-        start_dir: &Path,
-    ) -> CmdResult<Arc<Self>> {
+    pub fn spawn(id: u64, app: AppHandle, output: Arc<OutputSink>, size: PtySize, start_dir: &Path) -> CmdResult<Arc<Self>> {
         let shell_path = find_shell();
         let shell_name = shell_path.display().to_string();
-        let spawn_error = |what: &str, e: &dyn std::fmt::Display| {
-            AppError::new(ErrorCode::Io, format!("Could not start {shell_name}: {what}: {e}"))
-        };
+        let spawn_error =
+            |what: &str, e: &dyn std::fmt::Display| AppError::new(ErrorCode::Io, format!("Could not start {shell_name}: {what}: {e}"));
 
         // Without the side channel the terminal still works; only the file
         // tree sync and error help are lost, so that's not a reason to fail.
@@ -203,7 +196,10 @@ impl ShellSession {
             Ok(pipe) => (Some(pipe), None),
             Err(e) => {
                 log::warn!("Could not create the shell integration pipe {pipe_name}: {e}");
-                (None, Some(format!("VCE couldn't connect to PowerShell ({e}), so the file tree and error help won't follow this session.")))
+                (
+                    None,
+                    Some(format!("VCE couldn't connect to PowerShell ({e}), so the file tree and error help won't follow this session.")),
+                )
             }
         };
 
@@ -223,10 +219,7 @@ impl ShellSession {
         drop(pair.slave);
         log::info!("Shell session {id} started {shell_name} (pid {:?})", child.process_id());
 
-        let failure = FailureSignal {
-            killer: Arc::new(Mutex::new(child.clone_killer())),
-            reason: Arc::new(Mutex::new(None)),
-        };
+        let failure = FailureSignal { killer: Arc::new(Mutex::new(child.clone_killer())), reason: Arc::new(Mutex::new(None)) };
         let reader = pair.master.try_clone_reader().map_err(|e| spawn_error("reading its output failed", &e))?;
         let writer = pair.master.take_writer().map_err(|e| spawn_error("writing its input failed", &e))?;
         let (input, input_rx) = mpsc::channel();
@@ -502,8 +495,12 @@ impl ShellSession {
         };
         self.emit_activity(activity);
         if first {
-            let message = "VCE received a status update from PowerShell it couldn't read; the file tree may be out of date until the next command.";
-            self.emit(EVENT_INTEGRATION, IntegrationEvent { session_id: self.id, status: IntegrationStatus::Connected, message: Some(message.into()) });
+            let message =
+                "VCE received a status update from PowerShell it couldn't read; the file tree may be out of date until the next command.";
+            self.emit(
+                EVENT_INTEGRATION,
+                IntegrationEvent { session_id: self.id, status: IntegrationStatus::Connected, message: Some(message.into()) },
+            );
         }
     }
 
