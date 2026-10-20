@@ -52,13 +52,13 @@ impl OutputSink {
         state.backlog.extend(bytes);
         let excess = state.backlog.len().saturating_sub(BACKLOG_LIMIT);
         state.backlog.drain(..excess);
-        if let Some(channel) = &state.channel {
-            if let Err(e) = channel.send(Response::new(bytes.to_vec())) {
-                // The webview went away (reload or close); output keeps
-                // accumulating in the backlog until it re-attaches.
-                log::debug!("Dropping terminal output channel: {e}");
-                state.channel = None;
-            }
+        if let Some(channel) = &state.channel
+            && let Err(e) = channel.send(Response::new(bytes.to_vec()))
+        {
+            // The webview went away (reload or close); output keeps
+            // accumulating in the backlog until it re-attaches.
+            log::debug!("Dropping terminal output channel: {e}");
+            state.channel = None;
         }
     }
 }

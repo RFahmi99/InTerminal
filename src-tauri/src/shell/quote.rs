@@ -70,15 +70,15 @@ pub fn change_dir_command(target: &Path, cwd: Option<&Path>) -> String {
         if cwd.parent().is_some_and(|parent| same_path(parent, target)) {
             return "cd ..".to_string();
         }
-        if let (Some(parent), Some(name)) = (target.parent(), target.file_name()) {
-            if same_path(parent, cwd) {
-                let name = name.to_string_lossy();
-                return if has_wildcard(&name) {
-                    format!("cd -LiteralPath {}", single_quote(&name))
-                } else {
-                    format!("cd {}", argument(&name))
-                };
-            }
+        if let (Some(parent), Some(name)) = (target.parent(), target.file_name())
+            && same_path(parent, cwd)
+        {
+            let name = name.to_string_lossy();
+            return if has_wildcard(&name) {
+                format!("cd -LiteralPath {}", single_quote(&name))
+            } else {
+                format!("cd {}", argument(&name))
+            };
         }
     }
     let full = target.to_string_lossy();

@@ -173,7 +173,7 @@ fn read_embedding_tensor(bytes: &[u8]) -> Result<(usize, usize, Vec<f32>), Strin
     if data.len() != rows * dim * 4 {
         return Err(format!("embeddings data is {} bytes, expected {}", data.len(), rows * dim * 4));
     }
-    let floats = data.chunks_exact(4).map(|c| f32::from_le_bytes(c.try_into().expect("chunk of 4 bytes"))).collect();
+    let floats = data.as_chunks::<4>().0.iter().map(|c| f32::from_le_bytes(*c)).collect();
     Ok((rows, dim, floats))
 }
 

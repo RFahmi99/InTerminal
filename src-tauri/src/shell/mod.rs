@@ -56,10 +56,8 @@ impl ShellManager {
     /// spawn a shell.
     fn start(&self, app: &AppHandle, size: PtySize, reuse_running: bool) -> CmdResult<Arc<ShellSession>> {
         let mut slot = self.session.lock().unwrap_or_else(|e| e.into_inner());
-        if reuse_running {
-            if let Some(session) = slot.as_ref().filter(|s| !s.is_exited()) {
-                return Ok(Arc::clone(session));
-            }
+        if reuse_running && let Some(session) = slot.as_ref().filter(|s| !s.is_exited()) {
+            return Ok(Arc::clone(session));
         }
         if let Some(old) = slot.take() {
             old.kill();

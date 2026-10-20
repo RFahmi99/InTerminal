@@ -547,15 +547,16 @@ pub fn convert_chain_operators(command_line: &str) -> Option<String> {
 
 fn powershell_syntax(report: &FailureReport, text: &str) -> Vec<Suggestion> {
     let mut suggestions = Vec::new();
-    if text.contains("is not a valid statement separator") && report.command_line.contains("&&") {
-        if let Some(command) = convert_chain_operators(&report.command_line) {
-            suggestions.push(Suggestion::fix(
-                "chain-operator",
-                "Run the commands one after another",
-                "Windows PowerShell 5.1 doesn't understand && (PowerShell 7 does). This runs each command only if the previous one succeeded.",
-                command,
-            ));
-        }
+    if text.contains("is not a valid statement separator")
+        && report.command_line.contains("&&")
+        && let Some(command) = convert_chain_operators(&report.command_line)
+    {
+        suggestions.push(Suggestion::fix(
+            "chain-operator",
+            "Run the commands one after another",
+            "Windows PowerShell 5.1 doesn't understand && (PowerShell 7 does). This runs each command only if the previous one succeeded.",
+            command,
+        ));
     }
     if text.contains("operator is reserved for future use") && PLACEHOLDER.is_match(&report.command_line) {
         suggestions.push(Suggestion::advice(

@@ -105,7 +105,7 @@ fn read_entry(entry: &fs::DirEntry) -> std::io::Result<DirEntryInfo> {
         is_dir: meta.is_dir(),
         is_hidden: attributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM) != 0,
         is_symlink,
-        size: meta.is_file().then(|| meta.len()),
+        size: meta.is_file().then_some(meta.len()),
         modified_ms: meta
             .modified()
             .ok()

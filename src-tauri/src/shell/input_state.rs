@@ -70,10 +70,9 @@ impl InputTracker {
             // prompt event marks the shell idle again.
             self.at_prompt = false;
             self.line_dirty = false;
-        } else if data == "\x1b" && self.escape_clears_line {
-            self.line_dirty = false;
         } else {
-            self.line_dirty = true;
+            let clears_line = data == "\x1b" && self.escape_clears_line;
+            self.line_dirty = !clears_line;
         }
     }
 

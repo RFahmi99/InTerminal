@@ -163,10 +163,10 @@ impl LlamaServer {
                 }
             }
             // 503 means "still loading"; connection errors mean "not listening yet".
-            if let Ok(response) = agent.get(format!("{}/health", self.base_url)).call() {
-                if response.status() == 200 {
-                    return Ok(());
-                }
+            if let Ok(response) = agent.get(format!("{}/health", self.base_url)).call()
+                && response.status() == 200
+            {
+                return Ok(());
             }
             if started.elapsed() > STARTUP_TIMEOUT {
                 return Err(AppError::new(

@@ -114,7 +114,7 @@ static PLACEHOLDER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<[a-z0-9-]+>
 pub fn assess(command: &str) -> RiskReport {
     let text = PLACEHOLDER.replace_all(&command.to_lowercase(), "value").into_owned();
     let mut matched: Vec<&Rule> = RULES.iter().filter(|rule| rule.pattern.is_match(&text)).collect();
-    matched.sort_by(|a, b| b.level.cmp(&a.level));
+    matched.sort_by_key(|rule| std::cmp::Reverse(rule.level));
     let mut reasons: Vec<String> = Vec::new();
     for rule in &matched {
         if !reasons.iter().any(|r| r == rule.reason) {

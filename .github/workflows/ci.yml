@@ -53,7 +53,7 @@ jobs:
         run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/fetch-assets.ps1
       - name: Clippy
         working-directory: src-tauri
-        run: cargo clippy --all-targets --locked
+        run: cargo clippy --all-targets --locked -- -D warnings
       - name: Tests
         working-directory: src-tauri
         run: cargo test --locked
