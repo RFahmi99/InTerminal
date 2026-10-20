@@ -100,8 +100,9 @@ fn parse_page(platform: Platform, markdown: &str) -> Option<TldrPage> {
             && line.starts_with('`')
             && line.ends_with('`')
             && let Some(title) = pending_title.take()
+            // Examples that can't be filled in safely are left out.
+            && let Some((command, params)) = convert_command(&line[1..line.len() - 1])
         {
-            let (command, params) = convert_command(&line[1..line.len() - 1]);
             examples.push(TldrExample { title: clean_markup(&title), command, params });
         }
     }
@@ -134,8 +135,12 @@ fn slug(text: &str) -> String {
 /// - `{{[-m|--message]}}` (one option, short or long) becomes the long form,
 ///   which is easier to read;
 /// - `"{{message}}"` loses its quotes, because VCE quotes values itself;
-/// - any other `{{text}}` becomes `<text-as-slug>`, described by `text`.
-pub fn convert_command(raw: &str) -> (String, Vec<Param>) {
+/// - any other `{{text}}` becomes `<text-as-slug>`, described by `text`;
+/// - tldr's escaped braces `\{\{ \}\}` become literal `{{ }}`.
+///
+/// Returns `None` for an example that can't be filled in safely (see
+/// `is_safe_to_fill`).
+pub fn convert_command(raw: &str) -> Option<(String, Vec<Param>)> {
     static OPTION: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{\{\[([^\]]*)\]\}\}").expect("valid regex"));
     static QUOTED: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#""(\{\{[^}]*\}\})"|'(\{\{[^}]*\}\})'"#).expect("valid regex"));
     static PLACEHOLDER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{\{(.*?)\}\}").expect("valid regex"));
@@ -144,6 +149,9 @@ pub fn convert_command(raw: &str) -> (String, Vec<Param>) {
     let unquoted = QUOTED.replace_all(&with_options, |caps: &Captures| {
         caps.get(1).or_else(|| caps.get(2)).map_or(String::new(), |m| m.as_str().to_string())
     });
+    if !is_safe_to_fill(&unquoted) {
+        return None;
+    }
     let mut params: Vec<Param> = Vec::new();
     let mut seen = HashSet::new();
     let command = PLACEHOLDER
@@ -155,8 +163,40 @@ pub fn convert_command(raw: &str) -> (String, Vec<Param>) {
             }
             format!("<{name}>")
         })
-        .into_owned();
-    (command, params)
+        .replace(r"\{\{", "{{")
+        .replace(r"\}\}", "}}");
+    Some((command, params))
+}
+
+/// Whether every `{{placeholder}}` stands outside quotes and nothing outside
+/// quotes is a `<` redirection. A filled-in value is quoted on its own, so a
+/// placeholder inside a longer quoted string (`'--timeout={{seconds}}'`)
+/// would end those quotes early and run the rest of the value as code; and
+/// PowerShell rejects `<`, which it reserves for future use.
+fn is_safe_to_fill(command: &str) -> bool {
+    let mut quote = None;
+    let mut rest = command;
+    while let Some(c) = rest.chars().next() {
+        if rest.starts_with("{{") {
+            if quote.is_some() {
+                return false;
+            }
+            // Skip the placeholder: its text describes the value, it isn't syntax.
+            let Some(end) = rest.find("}}") else {
+                return false;
+            };
+            rest = &rest[end + 2..];
+            continue;
+        }
+        match (quote, c) {
+            (None, '\'' | '"') => quote = Some(c),
+            (Some(open), _) if c == open => quote = None,
+            (None, '<') => return false,
+            _ => {}
+        }
+        rest = &rest[c.len_utf8()..];
+    }
+    true
 }
 
 #[cfg(test)]
@@ -191,14 +231,32 @@ mod tests {
 
     #[test]
     fn converts_placeholders_into_safe_templates() {
-        let (command, params) = convert_command(r"robocopy {{path\to\source}} {{path\to\destination}} {{*.jpg}} /E");
+        let (command, params) = convert_command(r"robocopy {{path\to\source}} {{path\to\destination}} {{*.jpg}} /E").unwrap();
         assert_eq!(command, "robocopy <path-to-source> <path-to-destination> <jpg> /E");
         assert_eq!(params[0].description, r"path\to\source");
-        let (command, params) = convert_command("tar czf {{path/to/target.tar.gz}} {{path/to/target.tar.gz}}");
+        let (command, params) = convert_command("tar czf {{path/to/target.tar.gz}} {{path/to/target.tar.gz}}").unwrap();
         assert_eq!(command, "tar czf <path-to-target-tar-gz> <path-to-target-tar-gz>");
         assert_eq!(params.len(), 1, "a repeated placeholder is one value");
-        let (command, _) = convert_command("driverquery /fo {{table|list|csv}}");
+        let (command, _) = convert_command("driverquery /fo {{table|list|csv}}").unwrap();
         assert_eq!(command, "driverquery /fo <table-list-csv>");
+    }
+
+    #[test]
+    fn refuses_examples_that_cannot_be_filled_safely() {
+        // A value like `1; calc` would close the outer quotes and run calc.
+        assert!(convert_command("git config credential.helper 'cache --timeout={{time_in_seconds}}'").is_none());
+        assert!(convert_command(r#"Resolve-Path -Path "\\{{hostname}}\{{path\to\file}}""#).is_none());
+        // PowerShell reserves `<`, so input redirection can't run.
+        assert!(convert_command("git < {{path/to/file_list}} check-ignore --stdin").is_none());
+        // Quotes wrapping just the placeholder, and `<` inside quotes, are fine.
+        assert_eq!(convert_command(r#"git commit -m "{{message}}""#).unwrap().0, "git commit -m <message>");
+        assert_eq!(convert_command("Select-String '<title>' {{path}}").unwrap().0, "Select-String '<title>' <path>");
+    }
+
+    #[test]
+    fn escaped_braces_become_literal() {
+        let (command, _) = convert_command(r"docker inspect --format '\{\{.Name\}\}' {{container}}").unwrap();
+        assert_eq!(command, "docker inspect --format '{{.Name}}' <container>");
     }
 
     #[test]

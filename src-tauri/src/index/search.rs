@@ -106,7 +106,8 @@ const CROSS_PLATFORM_SYSTEM_TOOLS: &[&str] = &["curl", "tar", "ssh", "scp", "sft
 
 /// Syntax that only works in Unix shells, or needs administrator tools that
 /// don't exist on Windows.
-const UNIX_ONLY_SYNTAX: &[&str] = &["sudo ", "&&", "||", "$(", "/dev/", "<<", "~/"];
+/// (`<` redirection is refused earlier, when the page is parsed.)
+const UNIX_ONLY_SYNTAX: &[&str] = &["sudo ", "&&", "||", "$(", "/dev/", "~/"];
 
 /// Search terms interned to ids, so a document stores four bytes per term
 /// rather than its own copy of each string.
@@ -396,22 +397,40 @@ impl CommandIndex {
         {
             return None;
         }
-        Some(match ps_command {
-            Some(_) => Invocation::Executable(executable.file_name()?.to_string_lossy().into_owned()),
-            None => Invocation::AsIs,
+        // Until PowerShell's command list is known, any program might be
+        // shadowed by an alias, and naming the file works either way.
+        if ps_command.is_some() || self.inventory.ps_commands.is_empty() {
+            Some(Invocation::Executable(executable.file_name()?.to_string_lossy().into_owned()))
+        } else {
+            Some(Invocation::AsIs)
+        }
+    }
+
+    /// Whether `name`, piped into by an example from a `platform` page, runs
+    /// what the page means. Platform-independent pages pipe into Unix tools,
+    /// so an alias (`sort` is Sort-Object) or Windows' namesake program
+    /// (sort.exe) would get options it doesn't understand.
+    fn runs_as_written(&self, name: &str, platform: Platform) -> bool {
+        if let Some(stem) = name.strip_suffix(".exe") {
+            return self.inventory.executables.contains_key(stem);
+        }
+        if let Some(command) = self.inventory.ps_commands.get(name) {
+            return command.kind != PsCommandKind::Alias || platform == Platform::Windows;
+        }
+        self.inventory.executables.get(name).is_some_and(|path| {
+            platform == Platform::Windows || !is_windows_system_file(path) || CROSS_PLATFORM_SYSTEM_TOOLS.contains(&name)
         })
     }
 
     /// The example as it must be typed here, or `None` if it can't work in
     /// PowerShell on this machine.
-    fn adapt_example(&self, program: &str, command: &str, invocation: &Invocation) -> Option<String> {
+    fn adapt_example(&self, program: &str, command: &str, invocation: &Invocation, platform: Platform) -> Option<String> {
         if UNIX_ONLY_SYNTAX.iter().any(|unix| command.contains(unix)) {
             return None;
         }
-        // Every later pipeline stage must be something installed here.
         for stage in command.split('|').skip(1) {
             let word = first_word(stage);
-            if word.is_empty() || !self.inventory.has(&word) {
+            if word.is_empty() || !self.runs_as_written(&word, platform) {
                 return None;
             }
         }
@@ -478,7 +497,7 @@ impl CommandIndex {
                 continue;
             }
             for (example_index, example) in page.examples.iter().enumerate() {
-                let Some(command) = self.adapt_example(&program, &example.command, &invocation) else {
+                let Some(command) = self.adapt_example(&program, &example.command, &invocation, page.platform) else {
                     continue;
                 };
                 if !seen_examples.insert(command.to_lowercase()) {
@@ -973,6 +992,51 @@ mod tests {
         assert!(hit.is_some_and(|h| h.description.starts_with("Program installed at")));
         let curl = index.search("curl", 5).into_iter().find(|h| h.kind == HitKind::Program).unwrap();
         assert!(curl.description.starts_with("Transfer data from or to a server."));
+    }
+
+    fn index_with_pages(executables: &[(&str, PathBuf)], ps_commands: Vec<PsCommand>, pages: &str) -> CommandIndex {
+        let executables = executables.iter().map(|(name, path)| (name.to_string(), path.clone())).collect();
+        let knowledge = Knowledge { synopses: Arc::default(), tldr: Arc::new(super::super::tldr::parse_bundle(pages)) };
+        CommandIndex::build_with(Catalog::default(), Inventory::new(executables, ps_commands), None, knowledge)
+    }
+
+    fn alias(name: &str, definition: &str) -> PsCommand {
+        PsCommand { name: name.into(), kind: PsCommandKind::Alias, definition: Some(definition.into()), usage: None }
+    }
+
+    #[test]
+    fn piped_commands_must_run_as_the_page_means() {
+        let pages = "%%% common/docker.md\n# docker\n\n> Manage containers.\n\n- Sort images by size:\n\n`docker images | sort -k 2`\n\n- Show a container's state:\n\n`docker inspect {{container}} | jq .State`\n%%% windows/sc.md\n# sc\n\n> Manage services.\n\n- Show a service's status:\n\n`sc query {{service_name}}`\n\n- List the commands:\n\n`sc`\n";
+        let index = index_with_pages(
+            &[
+                ("docker", PathBuf::from(r"C:\Program Files\Docker\docker.exe")),
+                ("jq", PathBuf::from(r"C:\tools\jq.exe")),
+                ("sort", system32("sort.exe")),
+                ("sc", system32("sc.exe")),
+            ],
+            vec![alias("sort", "Sort-Object"), alias("sc", "Set-Content")],
+            pages,
+        );
+        let commands = example_commands(&index);
+        // `sort` would be Sort-Object, which has no -k option.
+        assert!(commands.iter().all(|c| !c.contains("sort")), "{commands:?}");
+        assert!(commands.contains(&"docker inspect <container> | jq .State".to_string()), "{commands:?}");
+        // In PowerShell, sc is Set-Content; the Windows page means sc.exe.
+        assert!(commands.contains(&"sc.exe query <service-name>".to_string()), "{commands:?}");
+        assert!(commands.contains(&"sc.exe".to_string()), "{commands:?}");
+    }
+
+    #[test]
+    fn programs_are_named_by_file_until_the_command_list_is_known() {
+        let index = index_with_pages(
+            &[("curl", system32("curl.exe")), ("git", PathBuf::from(r"C:\Program Files\Git\cmd\git.exe"))],
+            Vec::new(),
+            PAGES,
+        );
+        let commands = example_commands(&index);
+        // An alias may yet turn out to shadow curl, so don't type bare `curl`.
+        assert!(commands.contains(&"curl.exe --remote-name <https-example-com-file-zip>".to_string()), "{commands:?}");
+        assert!(commands.contains(&"git.exe commit --message <message>".to_string()), "{commands:?}");
     }
 
     /// The real bundled tldr pages parse and produce examples for programs
