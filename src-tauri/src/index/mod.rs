@@ -14,6 +14,7 @@ pub mod tldr;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
@@ -35,6 +36,7 @@ const PS_USAGE_CACHE: &str = "ps-usage-v1.json";
 const LEGACY_COMMANDS_CACHE: &str = "ps-commands.json";
 /// How long cached parameter usage is trusted before it is rebuilt.
 const USAGE_MAX_AGE: Duration = Duration::from_secs(7 * 24 * 60 * 60);
+const TLDR_UNAVAILABLE: &str = "The bundled command examples couldn't be loaded, so search shows fewer examples.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -81,11 +83,18 @@ impl Default for IndexStatus {
 pub struct IndexManager {
     index: RwLock<Option<Arc<CommandIndex>>>,
     status: Mutex<IndexStatus>,
+    /// Incremented by each build; a build that is no longer the latest stops
+    /// publishing, so an older PATH scan can't replace a newer one.
+    build_attempt: AtomicU64,
 }
 
 impl IndexManager {
     pub fn get(&self) -> Option<Arc<CommandIndex>> {
         self.index.read().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    fn is_latest(&self, attempt: u64) -> bool {
+        self.build_attempt.load(Ordering::SeqCst) == attempt
     }
 
     fn publish(&self, app: &AppHandle, index: CommandIndex, messages: Vec<String>) {
@@ -120,11 +129,24 @@ fn resource(app: &AppHandle, relative: &str) -> Result<PathBuf, String> {
 }
 
 fn cache_path(app: &AppHandle, file: &str) -> Option<PathBuf> {
-    app.path().app_cache_dir().ok().map(|dir| dir.join(file))
+    match app.path().app_cache_dir() {
+        Ok(dir) => Some(dir.join(file)),
+        Err(e) => {
+            log::warn!("No cache folder for {file}, so it is rebuilt every launch: {e}");
+            None
+        }
+    }
 }
 
 fn read_cache<T: DeserializeOwned>(path: &Path) -> Option<T> {
-    let text = std::fs::read_to_string(path).ok()?;
+    let text = match std::fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return None,
+        Err(e) => {
+            log::warn!("Could not read cache {}: {e}", path.display());
+            return None;
+        }
+    };
     match serde_json::from_str(&text) {
         Ok(value) => Some(value),
         Err(e) => {
@@ -134,12 +156,16 @@ fn read_cache<T: DeserializeOwned>(path: &Path) -> Option<T> {
     }
 }
 
+/// Writes to a temporary file first, so closing VCE mid-write can't leave a
+/// truncated cache behind.
 fn write_cache<T: Serialize>(path: &Path, value: &T) {
+    let temporary = path.with_extension("tmp");
     let result = path
         .parent()
         .map_or(Ok(()), std::fs::create_dir_all)
         .and_then(|()| serde_json::to_vec(value).map_err(std::io::Error::other))
-        .and_then(|json| std::fs::write(path, json));
+        .and_then(|json| std::fs::write(&temporary, json))
+        .and_then(|()| std::fs::rename(&temporary, path));
     if let Err(e) = result {
         log::warn!("Could not write cache {}: {e}", path.display());
     }
@@ -167,9 +193,11 @@ fn usage_is_stale(path: Option<&Path>) -> bool {
 /// Builds the index in passes, each published as soon as it's ready:
 /// 1. PATH plus the cached PowerShell command list (instant);
 /// 2. a fresh command list (a second or two);
-/// 3. when `refresh_usage` is set or the cache is stale, fresh parameter
-///    usage, which needs every module loaded (about a minute).
-fn build(app: &AppHandle, manager: &IndexManager, refresh_usage: bool) {
+/// 3. when `refresh_usage` is set or the cache is stale or unreadable, fresh
+///    parameter usage, which needs every module loaded (about a minute).
+///
+/// Stops publishing once a newer build (`attempt`) has started.
+fn build(app: &AppHandle, manager: &IndexManager, attempt: u64, refresh_usage: bool) {
     let mut messages = Vec::new();
     let catalog = match resource(app, "resources/catalog.json").and_then(|p| Catalog::load(&p)) {
         Ok(catalog) => catalog,
@@ -190,10 +218,17 @@ fn build(app: &AppHandle, manager: &IndexManager, refresh_usage: bool) {
     let tldr = match resource(app, "resources/tldr/pages.md")
         .and_then(|p| std::fs::read_to_string(&p).map_err(|e| format!("reading {}: {e}", p.display())))
     {
-        Ok(text) => tldr::parse_bundle(&text),
+        Ok(text) => {
+            let pages = tldr::parse_bundle(&text);
+            if pages.is_empty() {
+                log::error!("tldr-pages examples unavailable: the bundle has no pages in the expected format");
+                messages.push(TLDR_UNAVAILABLE.to_string());
+            }
+            pages
+        }
         Err(e) => {
             log::error!("tldr-pages examples unavailable: {e}");
-            messages.push("The bundled command examples couldn't be loaded, so search shows fewer examples.".to_string());
+            messages.push(TLDR_UNAVAILABLE.to_string());
             Vec::new()
         }
     };
@@ -201,7 +236,10 @@ fn build(app: &AppHandle, manager: &IndexManager, refresh_usage: bool) {
     let commands_cache = cache_path(app, PS_COMMANDS_CACHE);
     let usage_cache = cache_path(app, PS_USAGE_CACHE);
     remove_legacy_cache(app);
-    let mut usages: HashMap<String, String> = usage_cache.as_deref().and_then(read_cache).unwrap_or_default();
+    let cached_usages: Option<HashMap<String, String>> = usage_cache.as_deref().and_then(read_cache);
+    // An unreadable cache is rebuilt now rather than when it would expire.
+    let usage_outdated = refresh_usage || cached_usages.is_none() || usage_is_stale(usage_cache.as_deref());
+    let mut usages = cached_usages.unwrap_or_default();
     let shell = crate::shell::find_shell();
     // Only pages for commands that exist here are kept in the published index
     // (a few hundred of ~5,000); the full parse is dropped when this build ends.
@@ -216,11 +254,31 @@ fn build(app: &AppHandle, manager: &IndexManager, refresh_usage: bool) {
         let knowledge = knowledge(&inventory, query);
         manager.publish(app, CommandIndex::build_with(catalog.clone(), inventory, embedder.clone(), knowledge), messages.to_vec());
     };
+    // Shows a failure straight away; later publishes keep it, as it is in `messages`.
+    let report = |messages: &[String]| {
+        let mut status = manager.status();
+        status.messages = messages.to_vec();
+        manager.set_status(app, status);
+    };
+    let superseded = || {
+        let superseded = !manager.is_latest(attempt);
+        if superseded {
+            log::info!("Index build {attempt} stopped: a newer one has started");
+        }
+        superseded
+    };
 
     let cached: PsQuery = commands_cache.as_deref().and_then(read_cache).unwrap_or_default();
+    if superseded() {
+        return;
+    }
     publish(&cached, &usages, &messages);
 
-    let query = match inventory::query_ps_commands(&shell) {
+    let query = inventory::query_ps_commands(&shell);
+    if superseded() {
+        return;
+    }
+    let query = match query {
         Ok(query) => {
             if let Some(cache) = &commands_cache {
                 write_cache(cache, &query);
@@ -231,15 +289,18 @@ fn build(app: &AppHandle, manager: &IndexManager, refresh_usage: bool) {
         }
         Err(e) => {
             log::error!("Listing PowerShell commands failed: {e}");
-            let mut status = manager.status();
-            status.messages.push("PowerShell's command list couldn't be read, so some cmdlets may be missing from search.".into());
-            manager.set_status(app, status);
+            messages.push("PowerShell's command list couldn't be read, so some cmdlets may be missing from search.".into());
+            report(&messages);
             cached
         }
     };
 
-    if refresh_usage || usage_is_stale(usage_cache.as_deref()) {
-        match inventory::query_ps_usage(&shell) {
+    if usage_outdated {
+        let fresh = inventory::query_ps_usage(&shell);
+        if superseded() {
+            return;
+        }
+        match fresh {
             Ok(fresh) => {
                 log::info!("Read parameter usage for {} PowerShell commands", fresh.len());
                 if let Some(cache) = &usage_cache {
@@ -250,11 +311,8 @@ fn build(app: &AppHandle, manager: &IndexManager, refresh_usage: bool) {
             }
             Err(e) => {
                 log::error!("Reading PowerShell parameter usage failed: {e}");
-                let mut status = manager.status();
-                status
-                    .messages
-                    .push("PowerShell commands' parameter lists couldn't be read, so search shows commands without them.".into());
-                manager.set_status(app, status);
+                messages.push("PowerShell commands' parameter lists couldn't be updated, so some may be missing or out of date.".into());
+                report(&messages);
             }
         }
     }
@@ -269,11 +327,12 @@ fn mark_failed(app: &AppHandle, manager: &IndexManager, message: String) {
 }
 
 pub fn start_background_build(app: AppHandle, refresh_usage: bool) {
+    let attempt = app.state::<IndexManager>().build_attempt.fetch_add(1, Ordering::SeqCst) + 1;
     let worker = app.clone();
     let spawned = std::thread::Builder::new().name("command-index".into()).spawn(move || {
         let manager = worker.state::<IndexManager>();
         // A panic here must not leave search stuck on "building" forever.
-        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| build(&worker, &manager, refresh_usage)));
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| build(&worker, &manager, attempt, refresh_usage)));
         if let Err(panic) = outcome {
             let detail = panic
                 .downcast_ref::<String>()
@@ -313,4 +372,35 @@ pub async fn search_commands(manager: State<'_, IndexManager>, query: String, li
         return Err(AppError::new(ErrorCode::IndexUnavailable, message));
     };
     Ok(index.search(&query, limit.unwrap_or(8).min(25)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn usage_cache_is_stale_when_missing_or_older_than_a_week() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("usage.json");
+        assert!(usage_is_stale(None));
+        assert!(usage_is_stale(Some(&path)), "a missing file is stale");
+        std::fs::write(&path, "{}").unwrap();
+        assert!(!usage_is_stale(Some(&path)));
+        let file = std::fs::File::options().write(true).open(&path).unwrap();
+        file.set_modified(std::time::SystemTime::now() - Duration::from_secs(8 * 24 * 60 * 60)).unwrap();
+        assert!(usage_is_stale(Some(&path)));
+    }
+
+    #[test]
+    fn caches_round_trip_and_unreadable_ones_are_ignored() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("nested").join("usage.json");
+        let usages = HashMap::from([("new-volume".to_string(), "New-Volume -FriendlyName <string>".to_string())]);
+        write_cache(&path, &usages);
+        assert_eq!(read_cache::<HashMap<String, String>>(&path), Some(usages));
+        assert!(!path.with_extension("tmp").exists(), "the temporary file is renamed into place");
+        std::fs::write(&path, "{").unwrap();
+        assert_eq!(read_cache::<HashMap<String, String>>(&path), None);
+        assert_eq!(read_cache::<HashMap<String, String>>(&dir.path().join("missing.json")), None);
+    }
 }

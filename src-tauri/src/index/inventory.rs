@@ -3,9 +3,12 @@
 
 use std::collections::HashMap;
 use std::ffi::OsStr;
+use std::io::Read;
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
@@ -13,6 +16,10 @@ use crate::shell::quote::encoded_command;
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const BELOW_NORMAL_PRIORITY_CLASS: u32 = 0x0000_4000;
+/// Listing commands takes a second or two; a cold start on a slow disk, longer.
+const COMMANDS_TIMEOUT: Duration = Duration::from_secs(60);
+/// Loading every module takes about a minute on a typical machine.
+const USAGE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PsCommandKind {
@@ -136,7 +143,8 @@ const LIST_USAGE_SCRIPT: &str = r#"
 $ErrorActionPreference = 'SilentlyContinue'
 $ProgressPreference = 'SilentlyContinue'
 Get-Module -ListAvailable | Select-Object -ExpandProperty Name -Unique | ForEach-Object {
-    Import-Module $_ -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+    # A module may print a banner while loading; it must not reach the JSON.
+    Import-Module $_ -ErrorAction SilentlyContinue -WarningAction SilentlyContinue *> $null
 }
 $usages = Get-Command -CommandType Cmdlet, Function | Where-Object { $_.Name -match '^[A-Za-z]+-[A-Za-z0-9]+$' } | ForEach-Object {
     $set = $_.ParameterSets | Where-Object IsDefault | Select-Object -First 1
@@ -147,28 +155,79 @@ $usages = Get-Command -CommandType Cmdlet, Function | Where-Object { $_.Name -ma
 ConvertTo-Json -InputObject @($usages) -Compress
 "#;
 
-fn run_hidden(shell: &Path, script: &str, priority: u32) -> Result<String, String> {
-    let output = Command::new(shell)
+/// Reads `pipe` to the end on its own thread, so a full pipe can't stall the
+/// child while the caller waits for it to exit.
+fn read_in_background(pipe: Option<impl Read + Send + 'static>, name: &'static str) -> JoinHandle<String> {
+    std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        if let Some(mut pipe) = pipe
+            && let Err(e) = pipe.read_to_end(&mut bytes)
+        {
+            log::warn!("Reading PowerShell's {name} failed: {e}");
+        }
+        String::from_utf8_lossy(&bytes).into_owned()
+    })
+}
+
+fn joined(reader: JoinHandle<String>) -> String {
+    reader.join().unwrap_or_else(|_| {
+        log::warn!("The thread reading PowerShell's output panicked");
+        String::new()
+    })
+}
+
+/// Runs `script` in a hidden PowerShell without the user's profile and
+/// returns its output, killing it if it runs past `timeout` (a module that
+/// hangs while loading would otherwise stall indexing for good).
+fn run_hidden(shell: &Path, script: &str, priority: u32, timeout: Duration) -> Result<String, String> {
+    let mut child = Command::new(shell)
         .args(["-NoProfile", "-NonInteractive", "-NoLogo", "-EncodedCommand", &encoded_command(script)])
         .creation_flags(CREATE_NO_WINDOW | priority)
-        .output()
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(|e| format!("starting {}: {e}", shell.display()))?;
-    if !output.status.success() {
-        return Err(format!(
-            "{} exited with {}: {}",
-            shell.display(),
-            output.status,
-            String::from_utf8_lossy(&output.stderr).chars().take(500).collect::<String>()
-        ));
+    let stdout = read_in_background(child.stdout.take(), "output");
+    let stderr = read_in_background(child.stderr.take(), "error output");
+    let started = Instant::now();
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if started.elapsed() > timeout => {
+                if let Err(e) = child.kill() {
+                    log::warn!("Could not stop {} after it timed out: {e}", shell.display());
+                }
+                return Err(format!("{} didn't finish within {} s", shell.display(), timeout.as_secs()));
+            }
+            Ok(None) => std::thread::sleep(Duration::from_millis(100)),
+            Err(e) => return Err(format!("waiting for {}: {e}", shell.display())),
+        }
+    };
+    let (stdout, stderr) = (joined(stdout), joined(stderr));
+    let stderr_start: String = stderr.trim().chars().take(500).collect();
+    if !status.success() {
+        return Err(format!("{} exited with {status}: {stderr_start}", shell.display()));
     }
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    // The scripts silence errors so one broken module can't fail the whole
+    // query, which also means a successful run can still have hit problems.
+    if !stderr_start.is_empty() {
+        log::warn!("{} reported: {stderr_start}", shell.display());
+    }
+    Ok(stdout)
 }
 
 /// Asks a separate, hidden PowerShell (without the user's profile) for every
 /// command its modules provide. Takes a second or two; callers run it in the
 /// background and cache the result.
 pub fn query_ps_commands(shell: &Path) -> Result<PsQuery, String> {
-    parse_ps_commands(&run_hidden(shell, LIST_COMMANDS_SCRIPT, 0)?)
+    let query = parse_ps_commands(&run_hidden(shell, LIST_COMMANDS_SCRIPT, 0, COMMANDS_TIMEOUT)?)?;
+    // Errors are silenced in the script, so a broken PowerShell shows up as
+    // an empty list rather than a failure; it must not replace a good cache.
+    if query.commands.is_empty() {
+        return Err("PowerShell listed no commands".to_string());
+    }
+    Ok(query)
 }
 
 /// Lower-case command name to its parameter usage. Slow and memory-hungry
@@ -180,9 +239,12 @@ pub fn query_ps_usage(shell: &Path) -> Result<HashMap<String, String>, String> {
         name: String,
         usage: String,
     }
-    let json = run_hidden(shell, LIST_USAGE_SCRIPT, BELOW_NORMAL_PRIORITY_CLASS)?;
+    let json = run_hidden(shell, LIST_USAGE_SCRIPT, BELOW_NORMAL_PRIORITY_CLASS, USAGE_TIMEOUT)?;
     let raw: Vec<RawUsage> =
         serde_json::from_str(json.trim_start_matches('\u{feff}').trim()).map_err(|e| format!("parsing parameter usage output: {e}"))?;
+    if raw.is_empty() {
+        return Err("PowerShell reported no parameter usage".to_string());
+    }
     Ok(raw.into_iter().map(|u| (u.name.to_lowercase(), u.usage)).collect())
 }
 
@@ -243,6 +305,17 @@ mod tests {
         let found = scan_path(&path_var, ".COM;.EXE;.BAT;.CMD");
         assert_eq!(found.len(), 1);
         assert_eq!(found["tool"], first.path().join("tool.EXE"));
+    }
+
+    #[test]
+    fn hidden_powershell_returns_output_and_is_stopped_at_the_deadline() {
+        let shell = crate::shell::find_shell();
+        let output = run_hidden(&shell, "Write-Output 'ready'", 0, Duration::from_secs(60)).unwrap();
+        assert_eq!(output.trim(), "ready");
+        let started = Instant::now();
+        let error = run_hidden(&shell, "Start-Sleep -Seconds 30", 0, Duration::from_secs(1)).unwrap_err();
+        assert!(error.contains("didn't finish within 1 s"), "{error}");
+        assert!(started.elapsed() < Duration::from_secs(20));
     }
 
     #[test]
