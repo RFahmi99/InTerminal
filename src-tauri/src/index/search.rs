@@ -843,6 +843,68 @@ mod tests {
         assert_eq!(split_identifier("Get-NetTCPConnection"), "get net tcp connection");
     }
 
+    /// Lookups use binary search, so every id list must stay sorted.
+    #[test]
+    fn term_table_interns_sorted_unique_ids() {
+        let mut table = TermTable::default();
+        let ids = table.intern(vec!["zip".into(), "archive".into(), "zip".into()]);
+        assert_eq!(ids.len(), 2);
+        assert!(ids.windows(2).all(|pair| pair[0] < pair[1]));
+        assert_eq!(*table.intern(vec!["archive".into()]), [table.id("archive").unwrap()]);
+        assert_eq!(table.len(), 2);
+        table.intern(vec!["processor".into(), "proc".into(), "process".into()]);
+        let prefixed = table.ids_with_prefix("proc");
+        assert_eq!(prefixed.len(), 3);
+        assert!(prefixed.windows(2).all(|pair| pair[0] < pair[1]));
+    }
+
+    #[test]
+    fn a_term_counts_once_per_document() {
+        let index = small_index(None);
+        // "git" is in the git entry's title, keywords and command alike.
+        let git = index.terms.id("git").unwrap();
+        let containing = index.docs.iter().filter(|d| d.primary_terms.contains(&git) || d.secondary_terms.contains(&git)).count();
+        assert_eq!(index.doc_freq[git as usize] as usize, containing);
+    }
+
+    #[test]
+    fn partial_words_of_three_letters_or_more_match() {
+        let index = small_index(None);
+        let doc = index.docs.iter().find(|d| matches!(&d.source, DocSource::Cmdlet(name) if name == "Get-NetTCPConnection")).unwrap();
+        let score = |term: &str| CommandIndex::lexical_score(&[index.query_term(term)], doc);
+        assert_eq!(score("connection"), 1.0);
+        assert_eq!(score("conn"), 0.5);
+        assert_eq!(score("co"), 0.0);
+    }
+
+    #[test]
+    fn catalog_assumes_cmdlets_exist_until_the_command_list_is_known() {
+        let catalog = || Catalog {
+            version: 1,
+            entries: vec![
+                entry("expand-archive", "Extract files", "Expand-Archive -Path <archive>", &["unzip"], &["Expand-Archive"]),
+                entry("docker-ps", "List running containers", "docker ps", &["containers"], &["docker"]),
+            ],
+            tools: Vec::new(),
+        };
+        let entry_ids = |index: &CommandIndex| -> Vec<String> {
+            index
+                .docs
+                .iter()
+                .filter_map(|d| match d.source {
+                    DocSource::Catalog(i) => Some(index.catalog.entries[i].id.clone()),
+                    _ => None,
+                })
+                .collect()
+        };
+        // On a first launch PowerShell's command list isn't cached yet.
+        let unknown = CommandIndex::build(catalog(), Inventory::new(HashMap::new(), Vec::new()), None);
+        assert_eq!(entry_ids(&unknown), vec!["expand-archive"]);
+        let get_item = PsCommand { name: "Get-Item".into(), kind: PsCommandKind::Cmdlet, definition: None, usage: None };
+        let known = CommandIndex::build(catalog(), Inventory::new(HashMap::new(), vec![get_item]), None);
+        assert!(entry_ids(&known).is_empty());
+    }
+
     #[test]
     fn keyword_search_finds_synonyms_without_embeddings() {
         let index = small_index(None);
@@ -1024,6 +1086,19 @@ mod tests {
         // In PowerShell, sc is Set-Content; the Windows page means sc.exe.
         assert!(commands.contains(&"sc.exe query <service-name>".to_string()), "{commands:?}");
         assert!(commands.contains(&"sc.exe".to_string()), "{commands:?}");
+    }
+
+    #[test]
+    fn a_windows_page_replaces_the_generic_one_in_either_order() {
+        let common =
+            "%%% common/curl.md\n# curl\n\n> Transfer data, Unix style.\n\n- Download a file:\n\n`curl {{[-O|--remote-name]}} {{url}}`\n";
+        let windows = "%%% windows/curl.md\n# curl\n\n> Transfer data, Windows style.\n\n- Show the version:\n\n`curl --version`\n";
+        for pages in [format!("{common}{windows}"), format!("{windows}{common}")] {
+            let index = index_with_pages(&[("curl", system32("curl.exe"))], vec![alias("curl", "Invoke-WebRequest")], &pages);
+            assert_eq!(example_commands(&index), vec!["curl.exe --version"]);
+            let program = index.search("curl", 5).into_iter().find(|h| h.kind == HitKind::Program).unwrap();
+            assert!(program.description.starts_with("Transfer data, Windows style."), "{}", program.description);
+        }
     }
 
     #[test]
