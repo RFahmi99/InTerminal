@@ -121,6 +121,7 @@ pub fn scan_current_path() -> HashMap<String, PathBuf> {
 const LIST_COMMANDS_SCRIPT: &str = r#"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = 'SilentlyContinue'
+$ProgressPreference = 'SilentlyContinue'
 $commands = Get-Command -CommandType Alias, Cmdlet, Function | ForEach-Object {
     [pscustomobject]@{
         name = $_.Name
