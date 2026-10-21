@@ -67,6 +67,12 @@ Each Rust module has unit tests next to the code (`cargo test`). Frontend logic 
 - "Put on command line" is always offered as the review-first alternative.
 - Template values are quoted (`shell/quote.rs`) so user input is always one literal argument.
 - File tree deletes go to the Recycle Bin. Moves and renames use `MoveFileExW` without the replace flag, so Windows itself refuses to overwrite even if a file appears between VCE's check and the move. Moving two same-named items into one folder is refused.
+- tldr-pages examples are only offered when they can be filled in safely: a placeholder inside a longer quoted string (`'--timeout={{seconds}}'`) is refused, because the filled value is quoted on its own and could end the outer quotes early. So is `<` redirection, which PowerShell rejects.
+- Updates (`updates.rs`) are installed only when the user chooses. The updater verifies each download against the public key in `tauri.conf.json` before running it, so only installers signed with the project's key are accepted (see `RELEASING.md`).
+
+## Updates
+
+At launch (unless turned off in Settings) VCE waits 15 seconds, then asks GitHub for `latest.json` from the newest published release. A found update is announced and offered in Settings; a failed automatic check is only logged, because being offline is normal. Installing downloads the NSIS installer, verifies its signature, stops PowerShell and runs the installer in passive mode, which closes VCE and starts the new version.
 
 ## Accessibility
 

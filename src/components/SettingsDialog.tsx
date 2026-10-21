@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { announce } from "../a11y/announcer";
 import { runCommand } from "../commands";
 import { api, toAppError } from "../ipc/api";
 import type { ScreenReaderSetting, ThemeSetting } from "../ipc/types";
-import { useAppStore } from "../state/store";
+import { useAppStore, type UpdateState } from "../state/store";
+import { checkForUpdates, installUpdate } from "../updates";
 import { Dialog } from "./common/Dialog";
 
 const MIN_FONT = 11;
@@ -181,6 +183,83 @@ export function SettingsDialog() {
           </button>
         </div>
       </div>
+
+      <UpdatesSection />
     </Dialog>
+  );
+}
+
+function updateStatusText(update: UpdateState): string {
+  switch (update.phase) {
+    case "checking":
+      return "Checking for updates…";
+    case "upToDate":
+      return "You have the latest version.";
+    case "available":
+      return `Version ${update.info?.version} is available.`;
+    case "installing":
+      return `Downloading version ${update.info?.version}${update.percent === null ? "…" : `: ${update.percent}%`}. VCE will close and restart to finish.`;
+    case "failed":
+      // The message already says whether checking or installing failed.
+      return update.error ?? "";
+    case "idle":
+      return "";
+  }
+}
+
+function UpdatesSection() {
+  const ui = useAppStore((s) => s.ui);
+  const setUi = useAppStore((s) => s.setUi);
+  const update = useAppStore((s) => s.update);
+  const [version, setVersion] = useState<string | null>(null);
+  const status = useRef<HTMLSpanElement>(null);
+  const busy = update.phase === "checking" || update.phase === "installing";
+
+  const install = () => {
+    void installUpdate();
+    // The Install button goes away, so focus the status, which reads out the
+    // download's progress; otherwise focus would fall out of the dialog.
+    status.current?.focus();
+  };
+
+  useEffect(() => {
+    getVersion()
+      .then(setVersion)
+      .catch((error) => console.warn(`Couldn't read VCE's version: ${toAppError(error).message}`));
+  }, []);
+
+  return (
+    <div className="field">
+      <span style={{ fontWeight: 600 }}>Updates</span>
+      <span className="hint" ref={status} tabIndex={-1}>
+        {version ? `You have VCE ${version}. ` : ""}
+        {updateStatusText(update)}
+      </span>
+      {update.phase === "installing" && <progress max={100} value={update.percent ?? undefined} aria-label="Update download" />}
+      {update.info?.notes && (
+        <details>
+          <summary>What's new in {update.info.version}</summary>
+          <p style={{ whiteSpace: "pre-wrap" }}>{update.info.notes}</p>
+        </details>
+      )}
+      <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+        <button type="button" className="button" aria-disabled={busy} onClick={() => {
+            if (!busy) void checkForUpdates("user");
+          }}
+        >
+          Check for updates now
+        </button>
+        {update.info && (update.phase === "available" || update.phase === "failed") && (
+          <button type="button" className="button primary" onClick={install}>
+            Install {update.info.version} and restart
+          </button>
+        )}
+      </div>
+      <label className="choice-row">
+        <input type="checkbox" checked={ui.checkForUpdates} onChange={(event) => setUi({ checkForUpdates: event.target.checked })} />
+        Check for updates when VCE starts
+      </label>
+      <span className="hint">Checking asks GitHub for the latest release. VCE sends nothing about you or your files.</span>
+    </div>
   );
 }

@@ -10,7 +10,8 @@ export type ErrorCode =
   | "indexUnavailable"
   | "aiUnavailable"
   | "aiFailed"
-  | "cancelled";
+  | "cancelled"
+  | "updateFailed";
 
 export interface AppError {
   code: ErrorCode | "unknown";
@@ -200,6 +201,19 @@ export interface UiSettings {
   screenReaderMode: ScreenReaderSetting;
   showHidden: boolean;
   explorerWidth: number;
+  /** Look for a new VCE version when VCE starts. */
+  checkForUpdates: boolean;
+}
+
+export interface UpdateInfo {
+  version: string;
+  currentVersion: string;
+  notes: string | null;
+}
+
+export interface UpdateProgress {
+  downloaded: number;
+  total: number | null;
 }
 
 export interface Settings {

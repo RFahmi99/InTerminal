@@ -294,11 +294,13 @@ kbd {
   white-space: nowrap;
 }
 
-.button:hover:not(:disabled) {
+.button:hover:not(:disabled, [aria-disabled="true"]) {
   border-color: var(--sky);
 }
 
-.button:disabled {
+/* aria-disabled keeps a button focusable, so focus isn't lost while it waits. */
+.button:disabled,
+.button[aria-disabled="true"] {
   opacity: 0.55;
   cursor: not-allowed;
 }

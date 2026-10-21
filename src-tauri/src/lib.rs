@@ -11,6 +11,7 @@ mod index;
 mod settings;
 mod shell;
 mod system;
+mod updates;
 
 use tauri::{Manager, RunEvent};
 
@@ -20,7 +21,9 @@ pub fn run() {
         .plugin(tauri_plugin_log::Builder::new().level(log::LevelFilter::Info).max_file_size(2_000_000).build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(shell::ShellManager::default())
+        .manage(updates::UpdateManager::default())
         .manage(index::IndexManager::default())
         .manage(ai::AiManager::default())
         .setup(|app| {
@@ -60,6 +63,8 @@ pub fn run() {
             settings::settings_get,
             settings::settings_set_ui,
             system::system_screen_reader_active,
+            updates::update_check,
+            updates::update_install,
         ])
         .build(tauri::generate_context!())
         .expect("error while building the VCE application");

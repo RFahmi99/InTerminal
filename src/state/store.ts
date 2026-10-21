@@ -9,6 +9,7 @@ import type {
   RiskReport,
   Suggestion,
   UiSettings,
+  UpdateInfo,
 } from "../ipc/types";
 
 export const DEFAULT_UI_SETTINGS: UiSettings = {
@@ -17,7 +18,16 @@ export const DEFAULT_UI_SETTINGS: UiSettings = {
   screenReaderMode: "auto",
   showHidden: false,
   explorerWidth: 280,
+  checkForUpdates: true,
 };
+
+export interface UpdateState {
+  phase: "idle" | "checking" | "upToDate" | "available" | "installing" | "failed";
+  info: UpdateInfo | null;
+  /** Download progress while installing, 0–100; null until the size is known. */
+  percent: number | null;
+  error: string | null;
+}
 
 export type Overlay = "search" | "ai" | "settings" | "help" | null;
 
@@ -63,8 +73,10 @@ interface AppState {
   toasts: Toast[];
   /** A dangerous command waiting for the user to confirm running it. */
   pendingRun: PendingRun | null;
+  update: UpdateState;
 
   updateShell: (patch: Partial<ShellState>) => void;
+  setUpdate: (patch: Partial<UpdateState>) => void;
   setPendingRun: (pending: PendingRun | null) => void;
   setUi: (patch: Partial<UiSettings>) => void;
   setScreenReaderDetected: (detected: boolean) => void;
@@ -99,8 +111,10 @@ export const useAppStore = create<AppState>((set) => ({
   aiStatus: null,
   toasts: [],
   pendingRun: null,
+  update: { phase: "idle", info: null, percent: null, error: null },
 
   updateShell: (patch) => set((state) => ({ shell: { ...state.shell, ...patch } })),
+  setUpdate: (patch) => set((state) => ({ update: { ...state.update, ...patch } })),
   setPendingRun: (pendingRun) => set({ pendingRun }),
   setUi: (patch) => set((state) => ({ ui: { ...state.ui, ...patch } })),
   setScreenReaderDetected: (screenReaderDetected) => set({ screenReaderDetected }),

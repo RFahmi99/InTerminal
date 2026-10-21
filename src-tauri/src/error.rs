@@ -17,6 +17,7 @@ pub enum ErrorCode {
     AiUnavailable,
     AiFailed,
     Cancelled,
+    UpdateFailed,
 }
 
 #[derive(Debug, Clone, Serialize)]

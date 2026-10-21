@@ -3,6 +3,7 @@ import { announce } from "../a11y/announcer";
 import { api, events, subscribeAll } from "../ipc/api";
 import { notifyError, notifyFailure } from "../notify";
 import { useAppStore } from "../state/store";
+import { recordProgress } from "../updates";
 
 function folderName(path: string): string {
   const trimmed = path.replace(/[\\/]+$/, "");
@@ -10,8 +11,8 @@ function folderName(path: string): string {
 }
 
 /**
- * Keeps the store in step with the backend: shell state, command index and
- * AI status. Announces background changes so screen-reader users hear what
+ * Keeps the store in step with the backend: shell state, command index, AI
+ * status and update downloads. Announces background changes so screen-reader users hear what
  * sighted users see change.
  */
 export function useBackendEvents() {
@@ -58,6 +59,7 @@ export function useBackendEvents() {
             announce(`Command search is ready.${limits}`, "polite", "index");
           }
         }),
+        events.onUpdateProgress(recordProgress),
       ],
       (error) => notifyFailure(error, "VCE couldn't subscribe to background updates"),
     );

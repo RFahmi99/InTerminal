@@ -25,6 +25,8 @@ import type {
   Settings,
   Suggestion,
   UiSettings,
+  UpdateInfo,
+  UpdateProgress,
 } from "./types";
 
 /** Normalises anything a command can reject with into an AppError. */
@@ -75,6 +77,9 @@ export const api = {
   settingsSetUi: (ui: UiSettings) => invoke<void>("settings_set_ui", { ui }),
 
   screenReaderActive: () => invoke<boolean>("system_screen_reader_active"),
+
+  updateCheck: () => invoke<UpdateInfo | null>("update_check"),
+  updateInstall: () => invoke<void>("update_install"),
 };
 
 /**
@@ -105,4 +110,6 @@ export const events = {
   onAiProgress: (handler: (e: AiStage) => void) => listen<AiStage>("ai:progress", (e) => handler(e.payload)),
   onAiDownload: (handler: (e: DownloadProgress) => void) =>
     listen<DownloadProgress>("ai:download", (e) => handler(e.payload)),
+  onUpdateProgress: (handler: (e: UpdateProgress) => void) =>
+    listen<UpdateProgress>("update:progress", (e) => handler(e.payload)),
 };
