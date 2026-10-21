@@ -42,12 +42,9 @@ npm run typecheck
 npm run tauri build   # produces an NSIS installer in src-tauri/target/release/bundle/nsis
 ```
 
-If Windows 11 **Smart App Control** is on, it can block the freshly compiled Tauri build script with *"An Application Control policy has blocked this file (os error 4551)"*. If that happens, either:
+CI builds the installer on every push to `main` and keeps it as a workflow artifact. Signed releases with in-app updates are described in [RELEASING.md](RELEASING.md).
 
-- build in CI, for example a GitHub Actions `windows-latest` runner, or
-- build on a machine with Smart App Control off. Turning it off is permanent unless Windows is reset.
-
-`npm run tauri dev` usually still works, because debug build scripts are allowed.
+If Windows 11 **Smart App Control** is on, it can block freshly compiled build scripts, proc-macro DLLs or test binaries with *"An Application Control policy has blocked this file (os error 4551)"*. It judges each file by its exact bytes, so changing that package's codegen settings in a local, uncommitted `src-tauri/.cargo/config.toml` (for example `[profile.dev.package.native-tls]` with `opt-level = 1`) usually produces a file it accepts. Otherwise, build in CI.
 
 ## Project layout
 
@@ -62,6 +59,7 @@ src-tauri/src/
   assist/            error fix rules, risk assessment, command templates
   ai/                model download, llama-server lifecycle, prompt and parsing
   fs_ops.rs          file tree operations
+  updates.rs         checking for and installing new versions
 src-tauri/resources/catalog.json   curated command catalog (375 entries)
 scripts/fetch-assets.ps1            pinned third-party downloads
 docs/ARCHITECTURE.md                design and how the plan's four domains map to code
@@ -76,3 +74,26 @@ docs/ARCHITECTURE.md                design and how the plan's four domains map t
 | [tldr-pages](https://tldr.sh) v2.3 command examples (common + Windows pages) | CC BY 4.0, credited in the app's help dialog | `fetch-assets` |
 | [Qwen2.5-Coder-0.5B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF) | Apache-2.0 | downloaded in the app, with consent |
 | Atkinson Hyperlegible Next and Mono fonts | SIL OFL 1.1 | npm (`@fontsource-variable/*`) |
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+- **Committers and reviewers:** [Rayed Fahmi](https://github.com/RFahmi99)
+- **Approvers:** [Rayed Fahmi](https://github.com/RFahmi99)
+
+Only VCE's own files, built from this repository by GitHub Actions, are signed. The bundled third-party programs listed above keep their authors' signatures, or none.
+
+## Privacy
+
+VCE doesn't collect or send any information about you, your files or your commands. It connects to the internet only:
+
+- to check GitHub for a new VCE version when it starts (you can turn this off in Settings), and to download an update when you choose to install it;
+- to download the AI model, when you ask it to;
+- to install PowerShell's help from Microsoft, when you ask it to.
+
+Each request is an ordinary download from that site, which can see your IP address as with any download.
+
+## Licence
+
+[MIT](LICENSE).

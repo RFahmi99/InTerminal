@@ -132,3 +132,31 @@
 - **Why:** Smart App Control blocks the Tauri release build script on the dev machine, so the installer can only be built in CI. CI also runs the tests on every push.
 - **Also:** `.gitattributes` forces LF, so the length-checked shell integration script has the same bytes on CRLF-defaulting Windows checkouts.
 - **Next:** Make clippy warnings fatal once the existing warnings are fixed. Code signing and auto-update.
+
+## 2026-10-21 — Quality pass: review fixes, formatting, tests
+- **What:**
+  - Fixed all clippy warnings and made them fatal in CI.
+  - Adopted rustfmt (`max_width = 140`, matching the existing style) with a CI check.
+  - Ran code-review, silent-failure and test-coverage agents over the command index, and fixed what they found:
+    - tldr examples with placeholders inside longer quoted strings could break out of the quoting when filled in (e.g. `'cache --timeout={{seconds}}'` with `1; calc`). They are now refused, as is `<` redirection.
+    - tldr's escaped braces are now unescaped.
+    - Every pipeline stage is checked against the alias and System32 rules.
+    - Programs are named by file (`curl.exe`) until the command list is known.
+    - Index build: an unreadable usage cache is rebuilt at once; an empty PowerShell result counts as a failure; module banners are silenced; hidden PowerShell runs have deadlines; failure messages survive later publishes; cache writes are atomic; overlapping builds can't publish out of order.
+  - Added tests for each fix, plus term interning, page precedence and the first-launch catalog. Rust tests went from 104 to 117.
+- **Why:** The user asked for a quality pass after the first commit.
+- **Files:** `index/{tldr,search,mod,inventory,embedding,fuzzy}.rs`, `shell/*`, `assist/*`, `ai/server.rs`, `fs_ops.rs`, `rustfmt.toml`, CI workflow.
+- **Tried/rejected:** an ESLint/Prettier setup for the frontend would add new dependencies, so it's left as a suggestion.
+
+## 2026-10-21 — Auto-update and release pipeline
+- **What:**
+  - `updates.rs` adds `update_check` and `update_install` (tauri-plugin-updater 2.14 with native-tls). Before the installer exits VCE, PowerShell is stopped cleanly.
+  - Settings has an Updates section with a "Check for updates when VCE starts" option (on by default).
+  - A startup check runs 15 s after launch; it is quiet on failure and announces a found update.
+  - `release.yml` builds on `v*` tags. It optionally code-signs the app and then the installer through SignPath, signs the update with the updater key, writes `latest.json`, and creates a draft release.
+  - Added `RELEASING.md`, an MIT `LICENSE`, and README sections on the code-signing policy and privacy.
+- **Why:** The user chose SignPath Foundation for code signing and a public repository with GitHub Releases for updates.
+- **Key:** The updater key pair is in `%USERPROFILE%\.tauri\` (the private key is password-protected), and both are stored as repository secrets. Losing the key means installed copies can't update.
+- **Memory:** 30.3 MB Rust + 114–118 MB WebView2 = 144.5–148 MB private after a startup update check (budget 150 MB).
+- **Smart App Control:** the new dependencies' build scripts and proc-macro DLLs were blocked. A local, git-excluded `src-tauri/.cargo/config.toml` gives the blocked packages different codegen settings, which produces binaries it accepts.
+- **Next:** make the repository public; apply to SignPath Foundation; add the SignPath variables and secret; tag v0.1.0 (or v0.1.1) to produce the first release.

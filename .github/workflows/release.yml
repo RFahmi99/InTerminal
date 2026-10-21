@@ -1,0 +1,171 @@
+name: Release
+
+# Push a tag like v0.2.0 (matching the version in tauri.conf.json, Cargo.toml
+# and package.json) to build a signed installer and a draft GitHub release.
+# Publishing the draft is what makes the update reach users.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  # SignPath fetches the artifacts to sign through this run's token.
+  actions: read
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      # Code signing switches on once the SignPath project is set up (see
+      # RELEASING.md); until then releases are built unsigned.
+      SIGNPATH_ENABLED: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+      # Passed through the environment, never pasted into scripts, so a
+      # strange tag name can't become code.
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Check the tag is a plain version
+        shell: pwsh
+        run: if ($env:TAG -notmatch '^v\d+\.\d+\.\d+$') { throw "Tag '$env:TAG' isn't of the form v1.2.3" }
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Cache third-party assets
+        uses: actions/cache@v4
+        with:
+          path: |
+            src-tauri/resources/embedding
+            src-tauri/resources/llama
+            src-tauri/resources/tldr
+          key: assets-${{ hashFiles('scripts/fetch-assets.ps1') }}
+      - name: Fetch third-party assets
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/fetch-assets.ps1
+      - run: npm ci
+
+      - name: Check the tag matches the app version
+        shell: pwsh
+        run: |
+          $versions = [ordered]@{
+            'tauri.conf.json' = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+            'package.json'    = (Get-Content package.json -Raw | ConvertFrom-Json).version
+            'Cargo.toml'      = (Select-String -Path src-tauri/Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          }
+          foreach ($file in $versions.Keys) {
+            if ("v$($versions[$file])" -ne $env:TAG) { throw "Tag $env:TAG doesn't match version $($versions[$file]) in $file" }
+          }
+          "VERSION=$($versions['tauri.conf.json'])" >> $env:GITHUB_ENV
+
+      - name: Build the app
+        run: npx tauri build --no-bundle
+
+      # The app is signed before it goes into the installer, then the installer
+      # itself. Each signing request waits for approval in SignPath.
+      - name: Upload the app for signing
+        id: unsigned-app
+        if: env.SIGNPATH_ENABLED == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-app
+          path: src-tauri/target/release/interminal.exe
+          if-no-files-found: error
+      - name: Sign the app
+        if: env.SIGNPATH_ENABLED == 'true'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned-app.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: src-tauri/target/release
+      - name: Check the app's signature
+        if: env.SIGNPATH_ENABLED == 'true'
+        shell: pwsh
+        run: |
+          $signature = Get-AuthenticodeSignature src-tauri/target/release/interminal.exe
+          if ($signature.Status -ne 'Valid') { throw "The app isn't validly signed: $($signature.Status) $($signature.StatusMessage)" }
+
+      # Bundling normally writes the bundle type into the app, which would
+      # break its signature; that marker only matters when shipping several
+      # installer types, and VCE ships only NSIS.
+      - name: Build the installer
+        run: npx tauri bundle --bundles nsis --no-binary-patching
+      - name: Find the installer
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          if (-not $installer) { throw 'No NSIS installer was built' }
+          "INSTALLER=$($installer.FullName)" >> $env:GITHUB_ENV
+          "INSTALLER_NAME=$($installer.Name)" >> $env:GITHUB_ENV
+
+      - name: Upload the installer for signing
+        id: unsigned-installer
+        if: env.SIGNPATH_ENABLED == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-installer
+          path: ${{ env.INSTALLER }}
+          if-no-files-found: error
+      - name: Sign the installer
+        if: env.SIGNPATH_ENABLED == 'true'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: src-tauri/target/release/bundle/nsis
+      - name: Check the installer's signature
+        if: env.SIGNPATH_ENABLED == 'true'
+        shell: pwsh
+        run: |
+          $signature = Get-AuthenticodeSignature $env:INSTALLER
+          if ($signature.Status -ne 'Valid') { throw "The installer isn't validly signed: $($signature.Status) $($signature.StatusMessage)" }
+      - name: Note an unsigned release
+        if: env.SIGNPATH_ENABLED != 'true'
+        run: echo "::warning::SignPath isn't configured yet, so this installer is not code-signed."
+
+      # The updater checks this signature against the public key in
+      # tauri.conf.json, so it must cover the final, code-signed installer.
+      - name: Sign the update
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        shell: pwsh
+        run: npx tauri signer sign "$env:INSTALLER"
+
+      - name: Write the update manifest
+        shell: pwsh
+        run: |
+          git fetch --force origin "refs/tags/$($env:TAG):refs/tags/$($env:TAG)"
+          # The annotated tag's message is the "What's new" text VCE shows.
+          $notes = (git for-each-ref "refs/tags/$env:TAG" --format='%(contents)') -join "`n"
+          Set-Content -Path release-notes.md -Value $notes -Encoding utf8NoBOM
+          $manifest = [ordered]@{
+            version   = $env:VERSION
+            notes     = $notes.Trim()
+            pub_date  = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            platforms = [ordered]@{
+              'windows-x86_64' = [ordered]@{
+                signature = (Get-Content "$env:INSTALLER.sig" -Raw).Trim()
+                url       = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:TAG/$env:INSTALLER_NAME"
+              }
+            }
+          }
+          $manifest | ConvertTo-Json -Depth 4 | Set-Content -Path latest.json -Encoding utf8NoBOM
+
+      - name: Create a draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: >
+          gh release create $env:TAG "$env:INSTALLER" "$env:INSTALLER.sig" latest.json
+          --draft --title "VCE $env:VERSION" --notes-file release-notes.md
