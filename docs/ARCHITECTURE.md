@@ -1,6 +1,6 @@
-# VCE architecture
+# InTerminal architecture
 
-VCE is a Tauri 2 desktop app. It has a Rust backend, a React/TypeScript frontend, and a hidden PowerShell process. This document maps the four domains from the development plan to the code. It also records where the implementation deliberately differs from the plan, and why.
+InTerminal is a Tauri 2 desktop app. It has a Rust backend, a React/TypeScript frontend, and a hidden PowerShell process. This document maps the four domains from the development plan to the code. It also records where the implementation deliberately differs from the plan, and why.
 
 ## Domains and where they live
 
@@ -17,7 +17,7 @@ Each Rust module has unit tests next to the code (`cargo test`). Frontend logic 
 ## Shell controller: ConPTY plus a side channel
 
 - **Pseudo-console.** PowerShell runs in a Windows pseudo-console (ConPTY, via `portable-pty`). It does not use plain pipes. With pipes, PowerShell's line editor, colours and every interactive program (python REPL, ssh, vim) break.
-- **State comes through a private pipe, not the output.** ConPTY merges stdout and stderr and re-renders the screen, so neither "intercept stderr" nor "regex on stdout" (from the plan) is reliable. Instead, `shell/integration.ps1` runs inside the user's session after their profile and wraps their `prompt` function. On every prompt it sends one JSON line over a named pipe that only this app can connect to (`\\.\pipe\vce-<pid>-<uuid>`). The line holds the working directory, whether a command ran, `$?`, `$LASTEXITCODE` and the newest `ErrorRecord`. The script is passed with `-EncodedCommand`, so it works under any execution policy without changing that policy.
+- **State comes through a private pipe, not the output.** ConPTY merges stdout and stderr and re-renders the screen, so neither "intercept stderr" nor "regex on stdout" (from the plan) is reliable. Instead, `shell/integration.ps1` runs inside the user's session after their profile and wraps their `prompt` function. On every prompt it sends one JSON line over a named pipe that only this app can connect to (`\\.\pipe\interminal-<pid>-<uuid>`). The line holds the working directory, whether a command ran, `$?`, `$LASTEXITCODE` and the newest `ErrorRecord`. The script is passed with `-EncodedCommand`, so it works under any execution policy without changing that policy.
 - **Directory sync.**
   - *Terminal → tree:* a prompt event with a new `cwd` refreshes the tree and is announced to screen readers.
   - *Tree → terminal:* the backend types a visible `cd` into the shell (`shell/quote.rs` builds it safely). The resulting prompt event then updates the tree. The terminal stays the single source of truth.
@@ -46,7 +46,7 @@ Each Rust module has unit tests next to the code (`cargo test`). Frontend logic 
 
 ## AI command generation
 
-- **Separate process.** `llama-server.exe` (prebuilt llama.cpp, pinned build, bundled in `resources/llama`) is started for a single request and killed when it answers, fails or is cancelled. Killing the process returns all model memory to the OS. A Windows Job Object with kill-on-close guarantees the server dies even if VCE crashes. It listens only on 127.0.0.1 with a random port and API key, and runs with `--offline`.
+- **Separate process.** `llama-server.exe` (prebuilt llama.cpp, pinned build, bundled in `resources/llama`) is started for a single request and killed when it answers, fails or is cancelled. Killing the process returns all model memory to the OS. A Windows Job Object with kill-on-close guarantees the server dies even if InTerminal crashes. It listens only on 127.0.0.1 with a random port and API key, and runs with `--offline`.
 - **Model.** Qwen2.5-Coder-0.5B-Instruct Q4_K_M, downloaded only after the user agrees in the UI and checked against a pinned SHA-256. Users can pick any GGUF file instead.
 - **Grounding.** The prompt (`ai/prompt.rs`) includes the OS, PowerShell version, current folder and its first 40 items, installed notable tools, and the four most relevant catalog recipes. JSON-schema constrained decoding guarantees a parseable reply.
 - **Review.** The reply is post-processed:
@@ -61,18 +61,18 @@ Each Rust module has unit tests next to the code (`cargo test`). Frontend logic 
 
 - Every command the app proposes passes through `assist/risk.rs`, which uses conservative patterns. Permanent deletion, download-and-execute, registry and security changes and destructive git operations are rated **danger**.
 - **Danger** commands need a second confirmation (`RunConfirmDialog`). Run always re-assesses the exact text being run, so an edit made after a stale rating can't skip the confirmation. If the assessment itself fails, the command is treated as dangerous.
-- Anything VCE types into ConPTY with a control character in it is refused. Keystrokes like DEL (Backspace) or Esc in a folder name could otherwise undo the quoting.
+- Anything InTerminal types into ConPTY with a control character in it is refused. Keystrokes like DEL (Backspace) or Esc in a folder name could otherwise undo the quoting.
 - Paths taken from command output are only touched on the filesystem if they're local drive paths. Merely probing `\\host\share` makes Windows send the user's credentials to that host.
 - Values lifted from output (git branch names, npm and pip package names) are restricted to their legitimate character sets before they're placed in a fix command.
 - "Put on command line" is always offered as the review-first alternative.
 - Template values are quoted (`shell/quote.rs`) so user input is always one literal argument.
-- File tree deletes go to the Recycle Bin. Moves and renames use `MoveFileExW` without the replace flag, so Windows itself refuses to overwrite even if a file appears between VCE's check and the move. Moving two same-named items into one folder is refused.
+- File tree deletes go to the Recycle Bin. Moves and renames use `MoveFileExW` without the replace flag, so Windows itself refuses to overwrite even if a file appears between InTerminal's check and the move. Moving two same-named items into one folder is refused.
 - tldr-pages examples are only offered when they can be filled in safely: a placeholder inside a longer quoted string (`'--timeout={{seconds}}'`) is refused, because the filled value is quoted on its own and could end the outer quotes early. So is `<` redirection, which PowerShell rejects.
 - Updates (`updates.rs`) are installed only when the user chooses. The updater verifies each download against the public key in `tauri.conf.json` before running it, so only installers signed with the project's key are accepted (see `RELEASING.md`).
 
 ## Updates
 
-At launch (unless turned off in Settings) VCE waits 15 seconds, then asks GitHub for `latest.json` from the newest published release. A found update is announced and offered in Settings; a failed automatic check is only logged, because being offline is normal. Installing downloads the NSIS installer, verifies its signature, stops PowerShell and runs the installer in passive mode, which closes VCE and starts the new version.
+At launch (unless turned off in Settings) InTerminal waits 15 seconds, then asks GitHub for `latest.json` from the newest published release. A found update is announced and offered in Settings; a failed automatic check is only logged, because being offline is normal. Installing downloads the NSIS installer, verifies its signature, stops PowerShell and runs the installer in passive mode, which closes InTerminal and starts the new version.
 
 ## Accessibility
 
@@ -89,9 +89,9 @@ Measured on the release build at idle, Windows 11, private bytes, with about 2,4
 
 | Process | Private memory |
 |---|---|
-| VCE backend (Rust) | 30.8 MB |
+| InTerminal backend (Rust) | 30.8 MB |
 | WebView2 (all processes) | 114–117 MB (varies between runs) |
-| **VCE total** | **145–148 MB** (budget 150 MB) |
+| **InTerminal total** | **145–148 MB** (budget 150 MB) |
 | PowerShell 5.1 + conhost (the user's shell) | 76.8 MB |
 
 - **WebView2 flags.** `tauri.conf.json` passes WebView2 `--disable-gpu`, `--disable-gpu-compositing`, `--renderer-process-limit=1` and `--disable-background-networking`. That cuts WebView2 from about 199 MB to 110 MB private. The terminal uses xterm's DOM renderer, so it doesn't need the GPU process.
@@ -102,5 +102,5 @@ Measured on the release build at idle, Windows 11, private bytes, with about 2,4
 ## Robustness
 
 - **Panics stay contained.** Release builds unwind instead of aborting, so a panic in a background thread (such as the command indexer) can't take down the terminal. The indexer's panic becomes a visible "search unavailable" state.
-- **Broken shell connections end visibly.** If the shell's input or output pipe breaks, VCE stops the shell and shows why, with a Restart button. It doesn't leave a terminal that looks ready but ignores input.
-- **Fresh PATH.** New shells and the command index read PATH from the registry, so programs installed while VCE is open are found after a restart or refresh.
+- **Broken shell connections end visibly.** If the shell's input or output pipe breaks, InTerminal stops the shell and shows why, with a Restart button. It doesn't leave a terminal that looks ready but ignores input.
+- **Fresh PATH.** New shells and the command index read PATH from the registry, so programs installed while InTerminal is open are found after a restart or refresh.

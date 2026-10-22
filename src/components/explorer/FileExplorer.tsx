@@ -625,7 +625,7 @@ export function FileExplorer() {
         >
           <p>You can restore it from the Recycle Bin later.</p>
           <p className="muted">
-            In the terminal, <code>Remove-Item</code> deletes permanently instead, so VCE uses the Recycle Bin for this
+            In the terminal, <code>Remove-Item</code> deletes permanently instead, so InTerminal uses the Recycle Bin for this
             button.
           </p>
         </Dialog>

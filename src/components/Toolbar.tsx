@@ -19,7 +19,7 @@ export function Toolbar() {
   return (
     <header className="toolbar" data-region="toolbar">
       <div className="wordmark">
-        VCE<small>Visual Command Environment</small>
+        InTerminal
       </div>
       <button
         ref={searchRef}

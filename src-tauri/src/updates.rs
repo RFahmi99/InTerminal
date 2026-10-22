@@ -68,7 +68,7 @@ pub async fn update_check(app: AppHandle, manager: State<'_, UpdateManager>) -> 
 }
 
 /// Downloads the update found by the last check, verifies its signature and
-/// runs the installer, which closes VCE and starts the new version.
+/// runs the installer, which closes InTerminal and starts the new version.
 #[tauri::command]
 pub async fn update_install(app: AppHandle, manager: State<'_, UpdateManager>) -> CmdResult<()> {
     if manager.installing.swap(true, Ordering::SeqCst) {
@@ -98,11 +98,11 @@ async fn install(app: &AppHandle, manager: &UpdateManager) -> CmdResult<()> {
         log::error!("Installing update {} failed: {e}", update.version);
         update_error("The update couldn't be installed", e)
     })?;
-    // Windows' installer exits VCE before this point; elsewhere, restart.
+    // Windows' installer exits InTerminal before this point; elsewhere, restart.
     app.restart();
 }
 
-/// An updater that stops PowerShell cleanly before the installer closes VCE:
+/// An updater that stops PowerShell cleanly before the installer closes InTerminal:
 /// on Windows it exits the process directly, skipping the usual exit event.
 fn updater(app: &AppHandle) -> CmdResult<Updater> {
     let handle = app.clone();

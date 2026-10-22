@@ -22,7 +22,7 @@ describe("checkForUpdates", () => {
     vi.mocked(api.updateCheck).mockResolvedValue(available);
     await checkForUpdates("startup");
     expect(useAppStore.getState().update).toMatchObject({ phase: "available", info: available });
-    expect(useAppStore.getState().toasts[0].message).toBe("VCE 0.2.0 is available. Open Settings to install it.");
+    expect(useAppStore.getState().toasts[0].message).toBe("InTerminal 0.2.0 is available. Open Settings to install it.");
   });
 
   it("stays quiet when a startup check fails, but reports a requested one", async () => {
@@ -55,7 +55,7 @@ describe("checkForUpdates", () => {
     await checkForUpdates("startup");
     expect(announce).not.toHaveBeenCalled();
     await checkForUpdates("user");
-    expect(announce).toHaveBeenCalledWith("You have the latest version of VCE.");
+    expect(announce).toHaveBeenCalledWith("You have the latest version of InTerminal.");
     expect(useAppStore.getState().update.phase).toBe("upToDate");
   });
 });

@@ -47,7 +47,7 @@ export async function runCommand(command: string, knownRisk: RiskReport | null):
     const fresh = await api.assessRisk(command);
     risk = knownRisk ? combineRisk(fresh, knownRisk) : fresh;
   } catch {
-    risk = { level: "danger", reasons: ["VCE couldn't check how risky this command is, so it asks before running it."] };
+    risk = { level: "danger", reasons: ["InTerminal couldn't check how risky this command is, so it asks before running it."] };
   }
   if (risk.level === "danger") {
     useAppStore.getState().setPendingRun({ command, risk });

@@ -1,11 +1,11 @@
-# Releasing VCE
+# Releasing InTerminal
 
-Releases are built by GitHub Actions (`.github/workflows/release.yml`) when a version tag is pushed. Installed copies of VCE find new releases through the updater, which reads `latest.json` from the newest **published** GitHub release.
+Releases are built by GitHub Actions (`.github/workflows/release.yml`) when a version tag is pushed. Installed copies of InTerminal find new releases through the updater, which reads `latest.json` from the newest **published** GitHub release.
 
 ## Make a release
 
 1. Set the same version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `package.json`, then commit.
-2. Create an annotated tag. Its message becomes the "What's new" text shown in VCE (it is copied into `latest.json`, so editing the release's notes on GitHub later doesn't change what VCE shows):
+2. Create an annotated tag. Its message becomes the "What's new" text shown in InTerminal (it is copied into `latest.json`, so editing the release's notes on GitHub later doesn't change what InTerminal shows):
 
    ```powershell
    git tag -a v0.2.0 -m "Faster command search and fixes for ..."
@@ -20,7 +20,7 @@ The workflow refuses to build if the tag doesn't match all three version numbers
 
 ## Updater signing key
 
-Every update is signed with a private key, and VCE only installs updates whose signature matches the public key in `tauri.conf.json`.
+Every update is signed with a private key, and InTerminal only installs updates whose signature matches the public key in `tauri.conf.json`.
 
 - The private key and its password are the repository secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
 - The maintainer keeps a backup outside the repository. **If the key is lost, installed copies can't be updated any more**; users would have to download a new installer by hand.

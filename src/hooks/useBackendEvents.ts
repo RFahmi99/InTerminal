@@ -61,7 +61,7 @@ export function useBackendEvents() {
         }),
         events.onUpdateProgress(recordProgress),
       ],
-      (error) => notifyFailure(error, "VCE couldn't subscribe to background updates"),
+      (error) => notifyFailure(error, "InTerminal couldn't subscribe to background updates"),
     );
   }, []);
 }

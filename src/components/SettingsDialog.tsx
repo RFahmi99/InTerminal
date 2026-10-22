@@ -198,7 +198,7 @@ function updateStatusText(update: UpdateState): string {
     case "available":
       return `Version ${update.info?.version} is available.`;
     case "installing":
-      return `Downloading version ${update.info?.version}${update.percent === null ? "…" : `: ${update.percent}%`}. VCE will close and restart to finish.`;
+      return `Downloading version ${update.info?.version}${update.percent === null ? "…" : `: ${update.percent}%`}. InTerminal will close and restart to finish.`;
     case "failed":
       // The message already says whether checking or installing failed.
       return update.error ?? "";
@@ -225,14 +225,14 @@ function UpdatesSection() {
   useEffect(() => {
     getVersion()
       .then(setVersion)
-      .catch((error) => console.warn(`Couldn't read VCE's version: ${toAppError(error).message}`));
+      .catch((error) => console.warn(`Couldn't read InTerminal's version: ${toAppError(error).message}`));
   }, []);
 
   return (
     <div className="field">
       <span style={{ fontWeight: 600 }}>Updates</span>
       <span className="hint" ref={status} tabIndex={-1}>
-        {version ? `You have VCE ${version}. ` : ""}
+        {version ? `You have InTerminal ${version}. ` : ""}
         {updateStatusText(update)}
       </span>
       {update.phase === "installing" && <progress max={100} value={update.percent ?? undefined} aria-label="Update download" />}
@@ -257,9 +257,9 @@ function UpdatesSection() {
       </div>
       <label className="choice-row">
         <input type="checkbox" checked={ui.checkForUpdates} onChange={(event) => setUi({ checkForUpdates: event.target.checked })} />
-        Check for updates when VCE starts
+        Check for updates when InTerminal starts
       </label>
-      <span className="hint">Checking asks GitHub for the latest release. VCE sends nothing about you or your files.</span>
+      <span className="hint">Checking asks GitHub for the latest release. InTerminal sends nothing about you or your files.</span>
     </div>
   );
 }

@@ -57,7 +57,7 @@ interface ShellState {
   busy: boolean;
   lineDirty: boolean;
   exitCode: number | null | undefined; // undefined while running
-  /** Why VCE stopped the shell, when it wasn't a normal exit. */
+  /** Why InTerminal stopped the shell, when it wasn't a normal exit. */
   exitReason: string | null;
   lastPrompt: PromptEvent | null;
 }

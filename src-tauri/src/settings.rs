@@ -55,14 +55,17 @@ impl SettingsStore {
                     log::warn!("Unreadable settings file {}: {e}", path.display());
                     (
                         Settings::default(),
-                        Some(format!("Your saved settings couldn't be read ({e}), so VCE started with the defaults.{kept}")),
+                        Some(format!("Your saved settings couldn't be read ({e}), so InTerminal started with the defaults.{kept}")),
                     )
                 }
             },
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => (Settings::default(), None),
             Err(e) => {
                 log::warn!("Could not read settings file {}: {e}", path.display());
-                (Settings::default(), Some(format!("Your saved settings couldn't be opened ({e}), so VCE started with the defaults.")))
+                (
+                    Settings::default(),
+                    Some(format!("Your saved settings couldn't be opened ({e}), so InTerminal started with the defaults.")),
+                )
             }
         };
         Self { path, current: Mutex::new(current), load_warning }

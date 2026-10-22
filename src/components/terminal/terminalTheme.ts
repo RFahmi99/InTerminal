@@ -1,6 +1,6 @@
 import type { ITheme } from "@xterm/xterm";
 
-// ANSI palettes tuned for VCE's grounds: every colour keeps at least 4.5:1
+// ANSI palettes tuned for InTerminal's grounds: every colour keeps at least 4.5:1
 // contrast against the background so PowerShell's red errors and yellow
 // warnings stay readable.
 

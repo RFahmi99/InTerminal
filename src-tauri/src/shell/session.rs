@@ -86,7 +86,7 @@ pub struct IntegrationEvent {
 pub struct ExitEvent {
     pub session_id: u64,
     pub exit_code: Option<u32>,
-    /// Set when VCE stopped the shell because it could no longer talk to it.
+    /// Set when InTerminal stopped the shell because it could no longer talk to it.
     pub reason: Option<String>,
 }
 
@@ -174,7 +174,7 @@ fn control_char_error(what: &str, c: char) -> AppError {
     AppError::new(
         ErrorCode::InvalidInput,
         format!(
-            "{what} contains a control character (U+{:04X}), which would act as a key press in the terminal, so VCE didn't type it.",
+            "{what} contains a control character (U+{:04X}), which would act as a key press in the terminal, so InTerminal didn't type it.",
             c as u32
         ),
     )
@@ -191,14 +191,16 @@ impl ShellSession {
 
         // Without the side channel the terminal still works; only the file
         // tree sync and error help are lost, so that's not a reason to fail.
-        let pipe_name = format!(r"\\.\pipe\vce-{}-{}", std::process::id(), uuid::Uuid::new_v4().simple());
+        let pipe_name = format!(r"\\.\pipe\interminal-{}-{}", std::process::id(), uuid::Uuid::new_v4().simple());
         let (pipe, pipe_error) = match create_pipe(&pipe_name) {
             Ok(pipe) => (Some(pipe), None),
             Err(e) => {
                 log::warn!("Could not create the shell integration pipe {pipe_name}: {e}");
                 (
                     None,
-                    Some(format!("VCE couldn't connect to PowerShell ({e}), so the file tree and error help won't follow this session.")),
+                    Some(format!(
+                        "InTerminal couldn't connect to PowerShell ({e}), so the file tree and error help won't follow this session."
+                    )),
                 )
             }
         };
@@ -209,11 +211,11 @@ impl ShellSession {
         // regardless of the user's execution policy, without weakening it.
         cmd.args(["-NoLogo", "-NoExit", "-EncodedCommand", &encoded_command(INTEGRATION_SCRIPT)]);
         cmd.cwd(start_dir);
-        // Read PATH afresh so programs installed since VCE started are found.
+        // Read PATH afresh so programs installed since InTerminal started are found.
         cmd.env("PATH", env_path::current());
-        cmd.env("TERM_PROGRAM", "VCE");
+        cmd.env("TERM_PROGRAM", "InTerminal");
         if pipe.is_some() {
-            cmd.env("VCE_PIPE", &pipe_name);
+            cmd.env("INTERMINAL_PIPE", &pipe_name);
         }
         let mut child = pair.slave.spawn_command(cmd).map_err(|e| spawn_error("launching the process failed", &e))?;
         drop(pair.slave);
@@ -449,7 +451,7 @@ impl ShellSession {
             }
             Err(_) => {
                 let message = format!(
-                    "PowerShell didn't load VCE's integration within {} seconds, so the file tree won't follow this session.",
+                    "PowerShell didn't load InTerminal's integration within {} seconds, so the file tree won't follow this session.",
                     INTEGRATION_CONNECT_TIMEOUT.as_secs()
                 );
                 return self.set_integration(IntegrationStatus::Unavailable, Some(message));
@@ -495,8 +497,7 @@ impl ShellSession {
         };
         self.emit_activity(activity);
         if first {
-            let message =
-                "VCE received a status update from PowerShell it couldn't read; the file tree may be out of date until the next command.";
+            let message = "InTerminal received a status update from PowerShell it couldn't read; the file tree may be out of date until the next command.";
             self.emit(
                 EVENT_INTEGRATION,
                 IntegrationEvent { session_id: self.id, status: IntegrationStatus::Connected, message: Some(message.into()) },
@@ -545,7 +546,7 @@ fn pump_input(mut writer: Box<dyn Write + Send>, input: &mpsc::Receiver<Vec<u8>>
     // Ends when the session (the only sender) is dropped.
     while let Ok(bytes) = input.recv() {
         if let Err(e) = writer.write_all(&bytes).and_then(|()| writer.flush()) {
-            failure.fail(format!("VCE lost the connection for sending keys to PowerShell ({e}), so it stopped the shell."));
+            failure.fail(format!("InTerminal lost the connection for sending keys to PowerShell ({e}), so it stopped the shell."));
             break;
         }
     }
@@ -561,7 +562,7 @@ fn pump_output(session_id: u64, mut reader: Box<dyn Read + Send>, output: &Outpu
             Ok(n) => output.push(session_id, &buffer[..n]),
             Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
             Err(e) => {
-                failure.fail(format!("VCE lost PowerShell's output ({e}), so it stopped the shell."));
+                failure.fail(format!("InTerminal lost PowerShell's output ({e}), so it stopped the shell."));
                 break;
             }
         }

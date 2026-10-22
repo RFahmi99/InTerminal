@@ -110,7 +110,7 @@ pub fn scan_path(path_var: &OsStr, pathext: &str) -> HashMap<String, PathBuf> {
 }
 
 /// Scans the PATH new programs would get (read fresh from the registry), so
-/// tools installed since VCE started are found after a refresh.
+/// tools installed since InTerminal started are found after a refresh.
 pub fn scan_current_path() -> HashMap<String, PathBuf> {
     let path_var = crate::env_path::current();
     let pathext = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into());

@@ -284,7 +284,7 @@ pub fn send_to_recycle_bin(paths: &[PathBuf]) -> CmdResult<FsOpResult> {
         paths: paths.iter().map(|p| p.to_string_lossy().into_owned()).collect(),
         // Remove-Item has no Recycle Bin option, so say so instead of
         // suggesting a command that would delete permanently.
-        equivalent: "# Remove-Item deletes permanently; VCE sends items to the Recycle Bin instead so they can be restored.".into(),
+        equivalent: "# Remove-Item deletes permanently; InTerminal sends items to the Recycle Bin instead so they can be restored.".into(),
     })
 }
 

@@ -1,4 +1,4 @@
-// Checking for and installing new VCE versions. A check at startup stays
+// Checking for and installing new InTerminal versions. A check at startup stays
 // quiet unless it finds something; one the user asks for always answers.
 
 import { announce } from "./a11y/announcer";
@@ -20,10 +20,10 @@ export async function checkForUpdates(trigger: "startup" | "user"): Promise<void
     const info = await api.updateCheck();
     if (info) {
       setUpdate({ phase: "available", info });
-      notifyDone(`VCE ${info.version} is available. Open Settings to install it.`);
+      notifyDone(`InTerminal ${info.version} is available. Open Settings to install it.`);
     } else {
       setUpdate({ phase: "upToDate", info: null });
-      if (trigger === "user") announce("You have the latest version of VCE.");
+      if (trigger === "user") announce("You have the latest version of InTerminal.");
     }
   } catch (error) {
     const { message } = toAppError(error);
@@ -52,7 +52,7 @@ export function recordProgress(progress: UpdateProgress): void {
   setUpdate({ percent });
 }
 
-/** Downloads and installs the update; on success VCE closes and the new version starts. */
+/** Downloads and installs the update; on success InTerminal closes and the new version starts. */
 export async function installUpdate(): Promise<void> {
   const { update, setUpdate } = useAppStore.getState();
   if (!update.info) return;

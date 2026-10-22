@@ -1,6 +1,6 @@
-//! The PATH a newly started program would get. VCE's own environment is
+//! The PATH a newly started program would get. InTerminal's own environment is
 //! frozen at launch, so programs installed afterwards (e.g. with winget) would
-//! stay invisible to new shells and to command search until VCE restarted.
+//! stay invisible to new shells and to command search until InTerminal restarted.
 
 use std::ffi::OsString;
 
@@ -44,7 +44,7 @@ pub fn current() -> OsString {
     let user = read_string(HKEY_CURRENT_USER, USER_ENVIRONMENT, "Path");
     let parts: Vec<String> = [machine, user].into_iter().flatten().filter(|p| !p.is_empty()).collect();
     if parts.is_empty() {
-        log::warn!("Could not read PATH from the registry; using VCE's own PATH");
+        log::warn!("Could not read PATH from the registry; using InTerminal's own PATH");
         return std::env::var_os("PATH").unwrap_or_default();
     }
     OsString::from(parts.join(";"))

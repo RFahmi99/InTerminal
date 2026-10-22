@@ -30,7 +30,7 @@ use inventory::{Inventory, PsQuery};
 use search::{CommandIndex, Knowledge, SearchHit};
 
 pub const EVENT_STATUS: &str = "index:status";
-/// Versioned so a cache written by an older VCE (a different shape) is ignored.
+/// Versioned so a cache written by an older InTerminal (a different shape) is ignored.
 const PS_COMMANDS_CACHE: &str = "ps-commands-v2.json";
 const PS_USAGE_CACHE: &str = "ps-usage-v1.json";
 const LEGACY_COMMANDS_CACHE: &str = "ps-commands.json";
@@ -156,7 +156,7 @@ fn read_cache<T: DeserializeOwned>(path: &Path) -> Option<T> {
     }
 }
 
-/// Writes to a temporary file first, so closing VCE mid-write can't leave a
+/// Writes to a temporary file first, so closing InTerminal mid-write can't leave a
 /// truncated cache behind.
 fn write_cache<T: Serialize>(path: &Path, value: &T) {
     let temporary = path.with_extension("tmp");
@@ -171,7 +171,7 @@ fn write_cache<T: Serialize>(path: &Path, value: &T) {
     }
 }
 
-/// Deletes the command cache older versions of VCE wrote in another format.
+/// Deletes the command cache older versions of InTerminal wrote in another format.
 fn remove_legacy_cache(app: &AppHandle) {
     let Some(path) = cache_path(app, LEGACY_COMMANDS_CACHE) else {
         return;

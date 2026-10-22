@@ -1,4 +1,4 @@
-//! VCE (Visual Command Environment): a PowerShell terminal with a synced
+//! InTerminal: a PowerShell terminal with a synced
 //! file tree, natural-language command search, error fix suggestions and an
 //! on-demand local AI command generator.
 
@@ -67,7 +67,7 @@ pub fn run() {
             updates::update_install,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building the VCE application");
+        .expect("error while building the InTerminal application");
 
     app.run(|handle, event| {
         if let RunEvent::Exit = event {

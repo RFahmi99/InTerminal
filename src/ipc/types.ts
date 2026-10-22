@@ -77,7 +77,7 @@ export interface IntegrationEvent {
 export interface ExitEvent {
   sessionId: number;
   exitCode: number | null;
-  /** Set when VCE stopped the shell because it lost contact with it. */
+  /** Set when InTerminal stopped the shell because it lost contact with it. */
   reason: string | null;
 }
 
@@ -201,7 +201,7 @@ export interface UiSettings {
   screenReaderMode: ScreenReaderSetting;
   showHidden: boolean;
   explorerWidth: number;
-  /** Look for a new VCE version when VCE starts. */
+  /** Look for a new InTerminal version when InTerminal starts. */
   checkForUpdates: boolean;
 }
 

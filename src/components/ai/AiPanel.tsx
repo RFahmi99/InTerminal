@@ -181,7 +181,7 @@ export function AiPanel() {
     if (!status.engineAvailable) {
       return (
         <p className="notice">
-          The AI engine isn't included in this copy of VCE, so command generation isn't available. Everything else
+          The AI engine isn't included in this copy of InTerminal, so command generation isn't available. Everything else
           works as normal.
         </p>
       );
@@ -205,7 +205,7 @@ export function AiPanel() {
       return (
         <>
           <p>
-            To write commands, VCE needs a small language model: {status.defaultModel.name},{" "}
+            To write commands, InTerminal needs a small language model: {status.defaultModel.name},{" "}
             {megabytes(status.defaultModel.bytes)}, {status.defaultModel.license} licence.
           </p>
           <p className="muted">

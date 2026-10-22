@@ -1,4 +1,4 @@
-/* VCE visual system.
+/* InTerminal visual system.
    Blue-ink ground, chalk text, sky for actions, and one signature element:
    the "command tape" (marigold label-maker strip) used wherever the app
    shows a command you could type. */
@@ -142,14 +142,6 @@ textarea {
   font-size: var(--text-l);
   letter-spacing: 0.02em;
   padding-inline: var(--space-2);
-}
-
-.wordmark small {
-  display: block;
-  font-weight: 400;
-  font-size: var(--text-xs);
-  color: var(--mist);
-  letter-spacing: 0;
 }
 
 .toolbar-search {
@@ -1117,7 +1109,6 @@ fieldset {
 }
 
 @media (max-width: 860px) {
-  .wordmark small,
   .toolbar-search kbd {
     display: none;
   }

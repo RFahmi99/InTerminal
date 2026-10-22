@@ -284,9 +284,8 @@ pub fn finish(raw: &str, context: &PromptContext, inventory: Option<&Inventory>)
                 warnings.push(format!("\"{word}\" isn't an installed program or known PowerShell command. The model may have made it up."));
             }
         }
-        None => {
-            warnings.push("VCE couldn't yet check that the commands used here exist on this computer, so review them carefully.".into())
-        }
+        None => warnings
+            .push("InTerminal couldn't yet check that the commands used here exist on this computer, so review them carefully.".into()),
     }
     Some(GeneratedCommand { risk: risk::assess(&command), command, explanation: reply.explanation.trim().to_string(), warnings })
 }

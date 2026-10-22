@@ -93,7 +93,7 @@ jobs:
 
       # Bundling normally writes the bundle type into the app, which would
       # break its signature; that marker only matters when shipping several
-      # installer types, and VCE ships only NSIS.
+      # installer types, and InTerminal ships only NSIS.
       - name: Build the installer
         run: npx tauri bundle --bundles nsis --no-binary-patching
       - name: Find the installer
@@ -146,7 +146,7 @@ jobs:
         shell: pwsh
         run: |
           git fetch --force origin "refs/tags/$($env:TAG):refs/tags/$($env:TAG)"
-          # The annotated tag's message is the "What's new" text VCE shows.
+          # The annotated tag's message is the "What's new" text InTerminal shows.
           $notes = (git for-each-ref "refs/tags/$env:TAG" --format='%(contents)') -join "`n"
           Set-Content -Path release-notes.md -Value $notes -Encoding utf8NoBOM
           $manifest = [ordered]@{
@@ -168,4 +168,4 @@ jobs:
         shell: pwsh
         run: >
           gh release create $env:TAG "$env:INSTALLER" "$env:INSTALLER.sig" latest.json
-          --draft --title "VCE $env:VERSION" --notes-file release-notes.md
+          --draft --title "InTerminal $env:VERSION" --notes-file release-notes.md

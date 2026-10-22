@@ -15,7 +15,7 @@ import { useResolvedTheme } from "../../theme";
 import { readLines } from "./outputCapture";
 import { DARK_TERMINAL_THEME, LIGHT_TERMINAL_THEME } from "./terminalTheme";
 
-export const PATH_DRAG_TYPE = "application/x-vce-path";
+export const PATH_DRAG_TYPE = "application/x-interminal-path";
 
 /** Lines read back when the start-of-command marker is gone (scrolled out). */
 const FALLBACK_CAPTURE_LINES = 200;

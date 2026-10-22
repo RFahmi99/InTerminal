@@ -265,7 +265,7 @@ fn generate_blocking(app: &AppHandle, request: &str) -> CmdResult<GeneratedComma
     let engine = engine_path(app).ok_or_else(|| {
         AppError::new(
             ErrorCode::AiUnavailable,
-            "The AI engine isn't installed with this copy of VCE, so command generation is unavailable.",
+            "The AI engine isn't installed with this copy of InTerminal, so command generation is unavailable.",
         )
     })?;
     let (model, using_default) = model_path(app, &app.state::<SettingsStore>())?;

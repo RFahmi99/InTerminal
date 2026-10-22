@@ -7,7 +7,7 @@ export function HelpDialog() {
   return (
     <Dialog title="Keyboard shortcuts" onClose={close} footer={<button type="button" className="button primary" onClick={close}>Close</button>}>
       <p>
-        Everything in VCE works from the keyboard. The terminal is a normal PowerShell; the file tree, search and AI
+        Everything in InTerminal works from the keyboard. The terminal is a normal PowerShell; the file tree, search and AI
         are there to help you learn which command does what.
       </p>
       <p className="muted">
@@ -19,7 +19,7 @@ export function HelpDialog() {
         <thead>
           <tr>
             <th scope="col">Keys</th>
-            <th scope="col">Anywhere in VCE</th>
+            <th scope="col">Anywhere in InTerminal</th>
           </tr>
         </thead>
         <tbody>

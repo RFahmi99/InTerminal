@@ -160,3 +160,10 @@
 - **Memory:** 30.3 MB Rust + 114–118 MB WebView2 = 144.5–148 MB private after a startup update check (budget 150 MB).
 - **Smart App Control:** the new dependencies' build scripts and proc-macro DLLs were blocked. A local, git-excluded `src-tauri/.cargo/config.toml` gives the blocked packages different codegen settings, which produces binaries it accepts.
 - **Next:** make the repository public; apply to SignPath Foundation; add the SignPath variables and secret; tag v0.1.0 (or v0.1.1) to produce the first release.
+
+## 2026-10-22 — Rename VCE to InTerminal; prepare the first release
+- **What:** The app is now called InTerminal everywhere: product name, window title, toolbar, messages, docs, the PowerShell integration's variables (`__InTerminal*`, `INTERMINAL_PIPE`), `TERM_PROGRAM`, the pipe name and the drag type. The app identifier changed from `com.vce.app` to `io.github.rfahmi99.interminal`. The toolbar's "Visual Command Environment" subtitle is gone. The README has a Download section explaining the SmartScreen and Smart App Control warnings for the unsigned installer.
+- **Why:** The user chose the name InTerminal, matching the repository. SignPath Foundation declined to sign for now because the project is new, so releases ship unsigned while the project builds a track record.
+- **Data:** The identifier sets the app-data folders, so this machine's `%APPDATA%` and `%LOCALAPPDATA%` `com.vce.app` folders (settings, caches, logs, the AI model) were renamed to the new identifier. Nothing had been released, so no users need migrating.
+- **Smart App Control:** the renamed release exe was blocked locally. `debug = 1` for the app package in the git-excluded `.cargo/config.toml` produces one it allows.
+- **Next:** tag v0.1.0, check and publish the draft release, build reputation, then reapply to SignPath.

@@ -134,7 +134,7 @@ fn slug(text: &str) -> String {
 /// Converts tldr placeholder syntax into a `<placeholder>` template:
 /// - `{{[-m|--message]}}` (one option, short or long) becomes the long form,
 ///   which is easier to read;
-/// - `"{{message}}"` loses its quotes, because VCE quotes values itself;
+/// - `"{{message}}"` loses its quotes, because InTerminal quotes values itself;
 /// - any other `{{text}}` becomes `<text-as-slug>`, described by `text`;
 /// - tldr's escaped braces `\{\{ \}\}` become literal `{{ }}`.
 ///

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "VCE",
+  "productName": "InTerminal",
   "version": "0.1.0",
-  "identifier": "com.vce.app",
+  "identifier": "io.github.rfahmi99.interminal",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "VCE — Visual Command Environment",
+        "title": "InTerminal",
         "width": 1280,
         "height": 800,
         "minWidth": 720,

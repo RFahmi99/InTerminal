@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Downloads the pinned third-party assets VCE bundles: the static embedding
+    Downloads the pinned third-party assets InTerminal bundles: the static embedding
     model used by semantic search and the llama.cpp CPU server used by the AI
     command generator. Every file is verified against a pinned SHA-256 so a
     tampered or truncated download fails loudly instead of being bundled.
@@ -76,7 +76,7 @@ if ((Test-Path -LiteralPath $marker) -and -not $Force) {
     $zipPath = Join-Path ([System.IO.Path]::GetTempPath()) $llamaZip
     Invoke-VerifiedDownload $llamaUrl $zipPath $llamaSha256
     if (Test-Path -LiteralPath $llamaDir) { Remove-Item -LiteralPath $llamaDir -Recurse -Force }
-    $extractDir = Join-Path ([System.IO.Path]::GetTempPath()) "vce-llama-$llamaBuild"
+    $extractDir = Join-Path ([System.IO.Path]::GetTempPath()) "interminal-llama-$llamaBuild"
     if (Test-Path -LiteralPath $extractDir) { Remove-Item -LiteralPath $extractDir -Recurse -Force }
     Expand-Archive -LiteralPath $zipPath -DestinationPath $extractDir
     New-Item -ItemType Directory -Force -Path $llamaDir | Out-Null
