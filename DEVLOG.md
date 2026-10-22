@@ -167,3 +167,8 @@
 - **Data:** The identifier sets the app-data folders, so this machine's `%APPDATA%` and `%LOCALAPPDATA%` `com.vce.app` folders (settings, caches, logs, the AI model) were renamed to the new identifier. Nothing had been released, so no users need migrating.
 - **Smart App Control:** the renamed release exe was blocked locally. `debug = 1` for the app package in the git-excluded `.cargo/config.toml` produces one it allows.
 - **Next:** tag v0.1.0, check and publish the draft release, build reputation, then reapply to SignPath.
+
+## 2026-10-22 — tldr examples committed; v0.1.0 draft built
+- **What:** The first v0.1.0 release run failed. tldr-pages had replaced `tldr-pages.en.zip` on its v2.3 release (at 14:02 UTC), so the pinned SHA-256 no longer matched. The processed `pages.md` and its licence are now committed in `src-tauri/resources/tldr`, and `fetch-assets -UpdateTldr` refreshes them for review with `git diff`. CI no longer caches that folder.
+- **Release:** The `v0.1.0` tag was moved to the fixed commit; the failed run had created no release. The rerun produced a draft release with the unsigned installer (40 MB), its updater signature and `latest.json`. The signature's key ID (`b697ad0797cf1354`) matches the public key in `tauri.conf.json`.
+- **Next:** test the installer on a PC without Smart App Control, then publish the draft.
