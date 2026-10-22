@@ -5,12 +5,20 @@
     command generator. Every file is verified against a pinned SHA-256 so a
     tampered or truncated download fails loudly instead of being bundled.
 
+    The tldr-pages examples are committed to the repository instead, because
+    tldr-pages replaces its download whenever pages change, so no hash could
+    pin it. -UpdateTldr refreshes them; review the result with git diff.
+
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts\fetch-assets.ps1
+
+.EXAMPLE
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\fetch-assets.ps1 -UpdateTldr
 #>
 [CmdletBinding()]
 param(
-    [switch]$Force
+    [switch]$Force,
+    [switch]$UpdateTldr
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,9 +40,7 @@ $llamaZip = "llama-$llamaBuild-bin-win-cpu-x64.zip"
 $llamaUrl = "https://github.com/ggml-org/llama.cpp/releases/download/$llamaBuild/$llamaZip"
 $llamaSha256 = '999ae6b2dbdb6e8fe09e5e20deeb167e5ad7adbd6e80a7366ca8fcf366507779'
 
-$tldrRelease = 'v2.3'
-$tldrUrl = "https://github.com/tldr-pages/tldr/releases/download/$tldrRelease/tldr-pages.en.zip"
-$tldrSha256 = '80341f9344be09856a0270a90fe38ba8951fd93a4474d18effc27df17525ec4c'
+$tldrUrl = 'https://github.com/tldr-pages/tldr/releases/latest/download/tldr-pages.en.zip'
 
 function Get-Sha256([string]$Path) {
     (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -95,15 +101,17 @@ if ((Test-Path -LiteralPath $marker) -and -not $Force) {
     Write-Host "  extracted to $llamaDir"
 }
 
-Write-Host "tldr-pages command examples ($tldrRelease, CC BY 4.0):"
+Write-Host 'tldr-pages command examples (CC BY 4.0):'
 $tldrDir = Join-Path $resources 'tldr'
-$tldrMarker = Join-Path $tldrDir ".release-$tldrRelease"
-if ((Test-Path -LiteralPath $tldrMarker) -and -not $Force) {
-    Write-Host "  up to date: $tldrDir"
+if (-not $UpdateTldr) {
+    foreach ($file in 'pages.md', 'LICENSE.md') {
+        if (-not (Test-Path -LiteralPath (Join-Path $tldrDir $file))) { throw "$tldrDir\$file is missing; it is part of the repository" }
+    }
+    Write-Host "  committed in $tldrDir (use -UpdateTldr to refresh)"
 } else {
-    $zipPath = Join-Path ([System.IO.Path]::GetTempPath()) "tldr-pages-$tldrRelease.en.zip"
-    Invoke-VerifiedDownload $tldrUrl $zipPath $tldrSha256
-    if (Test-Path -LiteralPath $tldrDir) { Remove-Item -LiteralPath $tldrDir -Recurse -Force }
+    $zipPath = Join-Path ([System.IO.Path]::GetTempPath()) 'tldr-pages.en.zip'
+    Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue
+    Invoke-VerifiedDownload $tldrUrl $zipPath $null
     New-Item -ItemType Directory -Force -Path $tldrDir | Out-Null
     # Only the platform-independent and Windows pages apply, and one file loads
     # far faster than thousands of tiny ones. Each page is preceded by a
@@ -130,8 +138,8 @@ if ((Test-Path -LiteralPath $tldrMarker) -and -not $Force) {
     } finally {
         $zip.Dispose()
     }
-    New-Item -ItemType File -Path $tldrMarker | Out-Null
-    Write-Host "  bundled $pageCount pages into $tldrDir\pages.md"
+    Remove-Item -LiteralPath $zipPath -Force
+    Write-Host "  bundled $pageCount pages into $tldrDir\pages.md; review the change with git diff"
 }
 
 Write-Host 'Done.'

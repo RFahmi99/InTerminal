@@ -50,7 +50,6 @@ jobs:
           path: |
             src-tauri/resources/embedding
             src-tauri/resources/llama
-            src-tauri/resources/tldr
           key: assets-${{ hashFiles('scripts/fetch-assets.ps1') }}
       - name: Fetch third-party assets
         run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/fetch-assets.ps1
@@ -83,7 +82,6 @@ jobs:
           path: |
             src-tauri/resources/embedding
             src-tauri/resources/llama
-            src-tauri/resources/tldr
           key: assets-${{ hashFiles('scripts/fetch-assets.ps1') }}
       - name: Fetch third-party assets
         run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/fetch-assets.ps1

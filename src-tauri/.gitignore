@@ -9,4 +9,3 @@
 # Third-party assets downloaded by scripts/fetch-assets.ps1 (pinned + hash-verified)
 /resources/embedding/
 /resources/llama/
-/resources/tldr/

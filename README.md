@@ -39,7 +39,7 @@ npm run fetch-assets   # downloads the pinned search model and llama.cpp server,
 npm run tauri dev      # runs the app with hot reload
 ```
 
-`fetch-assets` puts third-party files in `src-tauri/resources/embedding`, `src-tauri/resources/llama` and `src-tauri/resources/tldr`. These folders are git-ignored. The AI model itself (~490 MB) is downloaded from inside the app, and only after the user agrees.
+`fetch-assets` puts third-party files in `src-tauri/resources/embedding` and `src-tauri/resources/llama`, which are git-ignored. The tldr-pages examples in `src-tauri/resources/tldr` are committed instead, because tldr-pages replaces its download whenever pages change; `npm run fetch-assets -- -UpdateTldr` refreshes them, and the change is reviewed with `git diff`. The AI model itself (~490 MB) is downloaded from inside the app, and only after the user agrees.
 
 ### Checks
 
@@ -84,7 +84,7 @@ docs/ARCHITECTURE.md                design and how the plan's four domains map t
 |---|---|---|
 | [llama.cpp](https://github.com/ggml-org/llama.cpp) `llama-server` (build b11397) | MIT | `fetch-assets` |
 | [potion-base-8M](https://huggingface.co/minishlab/potion-base-8M) static embeddings | MIT | `fetch-assets` |
-| [tldr-pages](https://tldr.sh) v2.3 command examples (common + Windows pages) | CC BY 4.0, credited in the app's help dialog | `fetch-assets` |
+| [tldr-pages](https://tldr.sh) command examples (common + Windows pages, as of October 2026) | CC BY 4.0, credited in the app's help dialog | committed in `src-tauri/resources/tldr` |
 | [Qwen2.5-Coder-0.5B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF) | Apache-2.0 | downloaded in the app, with consent |
 | Atkinson Hyperlegible Next and Mono fonts | SIL OFL 1.1 | npm (`@fontsource-variable/*`) |
 
