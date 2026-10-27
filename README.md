@@ -9,33 +9,73 @@ InTerminal is a PowerShell terminal for Windows 10 and 11 that helps people lear
 
 Everything works from the keyboard and with screen readers. Press **F1** in the app for all shortcuts.
 
-## Download
+## Install
 
-Download the installer (`InTerminal_<version>_x64-setup.exe`) from the [latest release](https://github.com/RFahmi99/InTerminal/releases/latest). InTerminal then offers new versions itself, and installs them only when you choose.
+There are two ways to get InTerminal. Both give you the same app.
+
+### Option 1: the installer
+
+Download `InTerminal_<version>_x64-setup.exe` from the [latest release](https://github.com/RFahmi99/InTerminal/releases/latest) and run it. InTerminal then offers new versions itself, and installs them only when you choose.
 
 **The installer isn't code-signed yet.** InTerminal is a new project, and free code signing for open-source projects is only given to established ones. Until it is signed, Windows warns about it:
 
 - **SmartScreen** shows "Windows protected your PC". Choose **More info**, then **Run anyway**.
-- **Smart App Control**, if it's turned on, blocks unsigned apps and has no "run anyway" option. InTerminal can't run on such a PC until it is signed.
+- **Smart App Control**, if it's turned on, blocks unsigned apps and has no "run anyway" option. Use option 2 instead.
 
 Every release is built from this repository's source by GitHub Actions, and each update is checked against the project's own key before it installs.
 
-## Building from source
+### Option 2: build it yourself
 
-### Prerequisites
+This builds the same installer on your own PC from the source code. It needs about 6 GB of disk space for the build tools, and the first build takes 10–20 minutes.
 
-| Tool | Install |
-|---|---|
-| Rust (MSVC toolchain) | `winget install Rustlang.Rustup` |
-| Visual Studio 2022 Build Tools, C++ workload | `winget install Microsoft.VisualStudio.2022.BuildTools --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"` |
-| Node.js 20+ | `winget install OpenJS.NodeJS.LTS` |
-| WebView2 | Preinstalled on Windows 10/11 |
-
-### Getting started
+**1. Install the tools** (once). In PowerShell:
 
 ```powershell
-npm install
-npm run fetch-assets   # downloads the pinned search model and llama.cpp server, verifying SHA-256
+winget install Git.Git
+winget install OpenJS.NodeJS.LTS
+winget install Rustlang.Rustup
+winget install Microsoft.VisualStudio.2022.BuildTools --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+```
+
+Then **close PowerShell and open a new window**, so it finds the new tools.
+
+**2. Download and build InTerminal:**
+
+```powershell
+git clone https://github.com/RFahmi99/InTerminal.git
+cd InTerminal
+npm ci
+npm run fetch-assets
+npm run tauri build
+```
+
+`fetch-assets` downloads the search model and the AI engine, and checks each file against a pinned SHA-256.
+
+**3. Install it** by running the installer the build made:
+
+```powershell
+.\src-tauri\target\release\bundle\nsis\InTerminal_0.1.0_x64-setup.exe
+```
+
+(The version number in the file name matches the version you built.) A file you build yourself isn't marked as downloaded from the internet, so SmartScreen doesn't warn about it.
+
+**To update later**, run `git pull` in the `InTerminal` folder and repeat steps 2 and 3, or accept the update InTerminal offers.
+
+**If the build fails with *"An Application Control policy has blocked this file (os error 4551)"***, Smart App Control blocked one of the files the build creates. It judges each file by its exact bytes, so building that part slightly differently usually gets past it. Create `src-tauri\.cargo\config.toml` with a section for the package named in the error, for example:
+
+```toml
+[profile.release.package.native-tls]
+opt-level = 1
+debug = 1
+```
+
+then run `npm run tauri build` again. If the blocked file is the finished `interminal.exe` or the installer, Smart App Control won't run it however it's built; use a PC without Smart App Control until InTerminal is code-signed.
+
+## Development
+
+```powershell
+npm ci
+npm run fetch-assets
 npm run tauri dev      # runs the app with hot reload
 ```
 
@@ -49,15 +89,11 @@ npm run test:rust   # backend tests, including a search-ranking check against th
 npm run typecheck
 ```
 
-### Building an installer
+### Building and releasing
 
-```powershell
-npm run tauri build   # produces an NSIS installer in src-tauri/target/release/bundle/nsis
-```
+`npm run tauri build` produces the NSIS installer in `src-tauri/target/release/bundle/nsis`. CI builds it on every push to `main` and keeps it as a workflow artifact. Releases with in-app updates are described in [RELEASING.md](RELEASING.md).
 
-CI builds the installer on every push to `main` and keeps it as a workflow artifact. Signed releases with in-app updates are described in [RELEASING.md](RELEASING.md).
-
-If Windows 11 **Smart App Control** is on, it can block freshly compiled build scripts, proc-macro DLLs or test binaries with *"An Application Control policy has blocked this file (os error 4551)"*. It judges each file by its exact bytes, so changing that package's codegen settings in a local, uncommitted `src-tauri/.cargo/config.toml` (for example `[profile.dev.package.native-tls]` with `opt-level = 1`) usually produces a file it accepts. Otherwise, build in CI.
+Smart App Control can also block dev and test builds (os error 4551). The same per-package fix as above works, using `[profile.dev.package.<name>]` for dev builds and tests.
 
 ## Project layout
 
